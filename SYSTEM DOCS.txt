@@ -1,0 +1,1805 @@
+TRƯỜNG ĐẠI HỌC CÔNG NGHỆ
+ĐẠI HỌC QUỐC GIA HÀ NỘI
+
+
+
+
+Tài liệu phân tích yêu cầu hệ thống bán hàng online
+Giảng viên: Lê Khánh Trình
+          Nhóm thực hiện: 
+				Trần Trung Kiên.
+				
+
+
+
+
+
+LỜI NÓI ĐẦU
+Trong những năm gần đây, sự phát triển mạnh mẽ của công nghệ thông tin và Internet đã làm thay đổi sâu sắc cách con người giao tiếp, làm việc và đặc biệt là cách thức mua sắm, kinh doanh. Thương mại điện tử đã và đang trở thành một xu hướng tất yếu trong nền kinh tế số, cho phép các cá nhân và doanh nghiệp tiếp cận khách hàng một cách nhanh chóng, linh hoạt mà không bị giới hạn bởi yếu tố địa lý hay thời gian.
+Sự phổ biến của các nền tảng thương mại điện tử như Shopee, Lazada hay Tiki đã chứng minh hiệu quả của mô hình sàn giao dịch trực tuyến tập trung. Thông qua các nền tảng này, người bán có thể dễ dàng tiếp cận một lượng lớn khách hàng tiềm năng mà không cần đầu tư quá nhiều vào cơ sở hạ tầng công nghệ, trong khi người mua có thể tìm kiếm, so sánh và lựa chọn sản phẩm một cách thuận tiện. Tuy nhiên, bên cạnh những lợi ích đạt được, các hệ thống thương mại điện tử hiện tại vẫn tồn tại một số hạn chế nhất định.
+Một trong những vấn đề phổ biến là khả năng tìm kiếm sản phẩm chưa thực sự tối ưu. Phần lớn các hệ thống hiện nay vẫn dựa vào cơ chế tìm kiếm theo từ khóa, yêu cầu người dùng phải nhập đúng hoặc gần đúng tên sản phẩm để nhận được kết quả phù hợp. Trong khi đó, nhu cầu thực tế của người dùng thường mang tính mô tả, chẳng hạn như “áo mặc đi chơi giá rẻ” hoặc “điện thoại pin trâu dưới 5 triệu”. Điều này dẫn đến việc kết quả tìm kiếm không phản ánh chính xác nhu cầu của người dùng, làm giảm trải nghiệm và hiệu quả mua sắm.
+Bên cạnh đó, việc tương tác giữa người mua và người bán vẫn còn nhiều hạn chế. Người mua thường phải chờ đợi phản hồi từ người bán khi có thắc mắc về sản phẩm, trong khi người bán lại phải xử lý một lượng lớn câu hỏi lặp đi lặp lại. Điều này không chỉ làm giảm hiệu suất hoạt động mà còn ảnh hưởng đến trải nghiệm người dùng.
+Ngoài ra, người bán, đặc biệt là các cá nhân hoặc doanh nghiệp nhỏ, thường gặp khó khăn trong việc xây dựng nội dung sản phẩm hấp dẫn và tối ưu. Việc viết mô tả sản phẩm, lựa chọn tiêu đề và từ khóa phù hợp đòi hỏi kinh nghiệm và thời gian, trong khi không phải ai cũng có đủ nguồn lực để thực hiện tốt công việc này.
+Xuất phát từ những hạn chế trên, việc tích hợp các công nghệ trí tuệ nhân tạo vào hệ thống thương mại điện tử được xem là một hướng đi tiềm năng nhằm nâng cao chất lượng dịch vụ và trải nghiệm người dùng. Trí tuệ nhân tạo có khả năng phân tích ngữ nghĩa, hiểu ý định của người dùng, tự động hóa quá trình tương tác và hỗ trợ tối ưu nội dung một cách hiệu quả.
+Trong phạm vi dự án này, nhóm thực hiện đề xuất xây dựng một hệ thống sàn thương mại điện tử tích hợp trí tuệ nhân tạo, trong đó nổi bật là cơ chế tìm kiếm dựa trên ý định người dùng (intent-based search), chatbot hỗ trợ tự động và công cụ hỗ trợ người bán tối ưu nội dung sản phẩm. Hệ thống không chỉ kế thừa các chức năng cốt lõi của một nền tảng thương mại điện tử truyền thống mà còn bổ sung các tính năng thông minh nhằm giải quyết các vấn đề thực tế đã nêu.
+Tài liệu phân tích yêu cầu này được xây dựng nhằm cung cấp một cái nhìn tổng quan và chi tiết về hệ thống, bao gồm mục tiêu, phạm vi, các đối tượng sử dụng và các yêu cầu chức năng, phi chức năng. Tài liệu đóng vai trò làm nền tảng cho quá trình thiết kế, phát triển và triển khai hệ thống, đồng thời là cơ sở để đánh giá mức độ hoàn thiện của dự án.
+Nhóm thực hiện hy vọng rằng hệ thống được đề xuất sẽ góp phần cải thiện trải nghiệm người dùng trong thương mại điện tử, đồng thời tạo ra một nền tảng linh hoạt, dễ mở rộng và phù hợp với xu hướng phát triển của công nghệ trong tương lai.
+
+
+CHƯƠNG 1: GIỚI THIỆU CHUNG
+1.1 Mục đích
+Hệ thống sàn thương mại điện tử tích hợp trí tuệ nhân tạo được xây dựng với mục tiêu tạo ra một nền tảng trung gian hiện đại, hỗ trợ hiệu quả quá trình mua bán trực tuyến giữa người mua và người bán. Hệ thống không chỉ đáp ứng các nhu cầu cơ bản như tìm kiếm sản phẩm, đặt hàng và thanh toán mà còn hướng đến việc nâng cao trải nghiệm người dùng thông qua việc ứng dụng các công nghệ tiên tiến.
+Cụ thể, hệ thống hướng tới việc cải thiện khả năng tìm kiếm sản phẩm bằng cách chuyển từ cơ chế tìm kiếm theo từ khóa truyền thống sang cơ chế tìm kiếm dựa trên ý định của người dùng. Thông qua việc phân tích ngữ nghĩa của truy vấn, hệ thống có thể hiểu được nhu cầu thực sự của người dùng và đưa ra các kết quả phù hợp hơn.
+Bên cạnh đó, hệ thống cũng hỗ trợ tự động hóa quá trình tương tác giữa người mua và người bán thông qua chatbot, giúp giảm tải công việc cho người bán và rút ngắn thời gian phản hồi cho người mua. Ngoài ra, hệ thống còn cung cấp các công cụ hỗ trợ người bán trong việc xây dựng và tối ưu nội dung sản phẩm, từ đó nâng cao hiệu quả kinh doanh.
+Tài liệu này được xây dựng nhằm mô tả chi tiết các yêu cầu của hệ thống, làm cơ sở cho việc thiết kế, phát triển và kiểm thử. Đồng thời, tài liệu cũng giúp các bên liên quan hiểu rõ mục tiêu, phạm vi và các chức năng của hệ thống trước khi triển khai.
+
+1.2 Đối tượng sử dụng tài liệu
+Tài liệu phân tích yêu cầu hệ thống được xây dựng nhằm phục vụ nhiều nhóm đối tượng khác nhau tham gia vào quá trình phát triển và đánh giá hệ thống.
+Đầu tiên là nhóm phát triển phần mềm, bao gồm các lập trình viên và kiểm thử viên. Đây là nhóm sử dụng tài liệu thường xuyên nhất để hiểu rõ các yêu cầu chức năng và phi chức năng của hệ thống, từ đó triển khai các thành phần phần mềm một cách chính xác và nhất quán.
+Thứ hai là nhóm thiết kế giao diện người dùng (UI/UX). Dựa trên các yêu cầu được mô tả trong tài liệu, nhóm thiết kế có thể xây dựng giao diện phù hợp với nhu cầu người dùng, đảm bảo tính trực quan và dễ sử dụng.
+Thứ ba là nhà quản lý dự án, người chịu trách nhiệm giám sát tiến độ và chất lượng của dự án. Tài liệu giúp họ theo dõi việc triển khai có đáp ứng đúng yêu cầu ban đầu hay không.
+Cuối cùng là giảng viên và người đánh giá dự án. Tài liệu cung cấp cơ sở để đánh giá mức độ hoàn thiện, tính hợp lý và khả năng ứng dụng của hệ thống.
+
+1.3 Phạm vi của hệ thống
+Hệ thống được xây dựng nhằm cung cấp một nền tảng thương mại điện tử tập trung, cho phép nhiều người bán và người mua tương tác với nhau thông qua môi trường trực tuyến. Hệ thống đóng vai trò là trung gian, hỗ trợ các hoạt động mua bán nhưng không can thiệp trực tiếp vào hoạt động kinh doanh cụ thể của từng bên.
+Trong phạm vi của dự án, hệ thống sẽ cung cấp các chức năng chính bao gồm quản lý người dùng, quản lý sản phẩm và cửa hàng, xử lý đơn hàng và thanh toán, hệ thống chat và thông báo, cùng với các chức năng trí tuệ nhân tạo hỗ trợ tìm kiếm và tương tác.
+Cụ thể, hệ thống hỗ trợ người mua tìm kiếm sản phẩm, xem thông tin chi tiết, đặt hàng và theo dõi trạng thái đơn hàng. Người bán có thể đăng tải sản phẩm, quản lý cửa hàng và xử lý đơn hàng. Hệ thống cũng cung cấp các công cụ hỗ trợ như chatbot và tìm kiếm thông minh nhằm nâng cao trải nghiệm người dùng.
+Tuy nhiên, hệ thống không bao gồm một số chức năng nằm ngoài phạm vi như quản lý kho hàng vật lý, vận chuyển trực tiếp hay kiểm định chất lượng sản phẩm ngoài thực tế. Các hoạt động này sẽ do người bán hoặc các đơn vị bên thứ ba đảm nhiệm.
+Ngoài ra, hệ thống cũng không cung cấp các dịch vụ tài chính như cho vay hoặc hỗ trợ tín dụng. Việc thanh toán được thực hiện thông qua các cổng thanh toán bên thứ ba được tích hợp vào hệ thống.
+
+1.4 Tài liệu tham khảo
+Trong quá trình xây dựng tài liệu phân tích yêu cầu, nhóm thực hiện đã tham khảo nhiều nguồn tài liệu và hệ thống thực tế nhằm đảm bảo tính đầy đủ và phù hợp của các yêu cầu.
+Các nền tảng thương mại điện tử phổ biến như Shopee, Lazada và Tiki được nghiên cứu để phân tích các chức năng, quy trình mua bán và trải nghiệm người dùng. Ngoài ra, các tài liệu kỹ thuật về tích hợp cổng thanh toán và dịch vụ vận chuyển cũng được tham khảo để đảm bảo hệ thống có thể tích hợp với các dịch vụ bên ngoài.
+Bên cạnh đó, các tiêu chuẩn về bảo mật và bảo vệ dữ liệu như GDPR cũng được xem xét nhằm đảm bảo hệ thống tuân thủ các quy định pháp lý liên quan.
+
+1.5 Các thuật ngữ và từ viết tắt
+Trong tài liệu này, một số thuật ngữ và từ viết tắt được sử dụng với ý nghĩa như sau:
+Thương mại điện tử (TMĐT): Hình thức kinh doanh trực tuyến thông qua các nền tảng số.
+AI (Artificial Intelligence): Trí tuệ nhân tạo, công nghệ cho phép máy tính thực hiện các tác vụ thông minh.
+Intent-based Search: Phương pháp tìm kiếm dựa trên việc phân tích và hiểu ý định của người dùng thay vì chỉ dựa trên từ khóa.
+API (Application Programming Interface): Giao diện cho phép các hệ thống khác nhau giao tiếp với nhau.
+OTP (One-Time Password): Mật khẩu dùng một lần để xác thực.
+2FA (Two-Factor Authentication): Cơ chế xác thực hai yếu tố nhằm tăng cường bảo mật.
+SQL Injection, XSS, CSRF: Các hình thức tấn công phổ biến trong hệ thống web.
+CHƯƠNG 2: PHÂN TÍCH YÊU CẦU NGƯỜI DÙNG
+
+2.1 Giới thiệu
+Chương này trình bày việc phân tích các nhóm người dùng của hệ thống, vai trò của từng nhóm cũng như các nhu cầu và mong muốn cụ thể của họ khi sử dụng nền tảng. Việc xác định đúng các đối tượng tương tác với hệ thống là một bước quan trọng trong quá trình phân tích yêu cầu, bởi nó ảnh hưởng trực tiếp đến thiết kế chức năng, luồng xử lý và trải nghiệm người dùng.
+Trong mô hình hệ thống, các đối tượng tương tác trực tiếp với hệ thống được gọi là các tác nhân (actor). Đây là các thực thể nằm bên ngoài hệ thống nhưng có tương tác với hệ thống thông qua các chức năng được cung cấp. Các tác nhân có thể là con người hoặc các hệ thống bên ngoài.
+Bên cạnh các tác nhân, hệ thống còn bao gồm các thành phần xử lý nội bộ, chẳng hạn như các module trí tuệ nhân tạo, hệ thống gợi ý hoặc chatbot. Các thành phần này không được xem là tác nhân mà là một phần của hệ thống, đóng vai trò hỗ trợ xử lý và nâng cao chức năng.
+
+2.2 Các tác nhân của hệ thống
+Dựa trên phạm vi và mục tiêu của hệ thống, có thể xác định các tác nhân chính tương tác với hệ thống như sau:
+
+2.2.1 Người mua (Buyer)
+Người mua là tác nhân sử dụng hệ thống với mục đích tìm kiếm, lựa chọn và mua các sản phẩm phù hợp với nhu cầu cá nhân. Đây là nhóm người dùng chiếm tỷ lệ lớn nhất và đóng vai trò trung tâm trong hoạt động của hệ thống thương mại điện tử.
+Người mua tương tác với hệ thống thông qua các chức năng như tìm kiếm sản phẩm, xem thông tin chi tiết, thêm sản phẩm vào giỏ hàng, thực hiện thanh toán và theo dõi đơn hàng. Ngoài ra, người mua còn có thể đánh giá sản phẩm sau khi mua và tương tác với người bán thông qua hệ thống chat.
+Đặc điểm quan trọng của người mua là nhu cầu tìm kiếm thông tin nhanh chóng và chính xác. Trong thực tế, người dùng thường sử dụng các truy vấn mang tính mô tả thay vì các từ khóa chính xác. Do đó, hệ thống cần được thiết kế để hỗ trợ các hình thức tìm kiếm linh hoạt và thông minh.
+
+2.2.2 Người bán (Seller)
+Người bán là cá nhân hoặc tổ chức sử dụng hệ thống để cung cấp sản phẩm và dịch vụ đến người mua. Họ có thể tạo và quản lý cửa hàng, đăng tải sản phẩm và xử lý các đơn hàng phát sinh.
+Người bán tương tác với hệ thống thông qua các chức năng như quản lý danh mục sản phẩm, cập nhật thông tin sản phẩm, theo dõi đơn hàng và phản hồi các yêu cầu từ khách hàng. Ngoài ra, người bán cũng có thể sử dụng hệ thống để theo dõi hiệu quả kinh doanh thông qua các báo cáo và thống kê.
+Một đặc điểm quan trọng của người bán là nhu cầu tối ưu nội dung sản phẩm nhằm thu hút khách hàng. Điều này bao gồm việc xây dựng tiêu đề, mô tả và hình ảnh phù hợp. Hệ thống cần hỗ trợ người bán trong quá trình này để nâng cao hiệu quả kinh doanh.
+
+2.2.3 Quản trị viên (Admin)
+Quản trị viên là tác nhân chịu trách nhiệm quản lý và giám sát toàn bộ hệ thống. Họ có quyền truy cập vào các chức năng quản lý cao cấp, bao gồm quản lý người dùng, cửa hàng, sản phẩm và các hoạt động giao dịch.
+Quản trị viên có vai trò đảm bảo hệ thống hoạt động ổn định, an toàn và tuân thủ các quy định. Họ cũng chịu trách nhiệm xử lý các vấn đề phát sinh như khiếu nại, vi phạm chính sách hoặc các sự cố kỹ thuật.
+Ngoài ra, quản trị viên cần có khả năng theo dõi và phân tích hoạt động của hệ thống thông qua các công cụ báo cáo và thống kê, từ đó đưa ra các quyết định quản lý phù hợp.
+
+2.2.4 Các hệ thống bên ngoài
+Bên cạnh các tác nhân là con người, hệ thống còn tương tác với một số hệ thống bên ngoài để thực hiện các chức năng cụ thể.
+Các hệ thống này có thể bao gồm:
+Hệ thống thanh toán: xử lý các giao dịch tài chính giữa người mua và người bán.
+Hệ thống gửi thông báo: gửi email, tin nhắn hoặc thông báo đẩy đến người dùng.
+Hệ thống vận chuyển: hỗ trợ theo dõi và cập nhật trạng thái giao hàng.
+Các hệ thống bên ngoài này được xem là các tác nhân trong mô hình, bởi chúng nằm ngoài phạm vi hệ thống nhưng có tương tác trực tiếp thông qua các giao diện tích hợp.
+
+2.3 Các thành phần chức năng nội bộ
+Ngoài các tác nhân bên ngoài, hệ thống còn bao gồm các thành phần xử lý nội bộ nhằm hỗ trợ và nâng cao hiệu quả hoạt động. Các thành phần này không được xem là tác nhân mà là một phần của hệ thống.
+
+2.3.1 Hệ thống trí tuệ nhân tạo
+Hệ thống trí tuệ nhân tạo là một thành phần quan trọng, chịu trách nhiệm xử lý các chức năng thông minh trong hệ thống. Thành phần này giúp cải thiện trải nghiệm người dùng và tối ưu hóa hoạt động kinh doanh.
+Một trong những chức năng chính của hệ thống AI là phân tích truy vấn tìm kiếm của người dùng. Thay vì chỉ xử lý từ khóa, hệ thống có khả năng hiểu ý định của người dùng thông qua việc phân tích ngữ nghĩa. Từ đó, hệ thống có thể chuyển đổi truy vấn thành các tiêu chí tìm kiếm cụ thể và trả về kết quả phù hợp hơn.
+Ngoài ra, hệ thống AI còn hỗ trợ việc tự động trả lời các câu hỏi của người dùng thông qua chatbot. Dựa trên dữ liệu sản phẩm, hệ thống có thể cung cấp các câu trả lời nhanh chóng và chính xác, giúp giảm tải cho người bán.
+Bên cạnh đó, hệ thống AI còn hỗ trợ người bán trong việc tạo và tối ưu nội dung sản phẩm. Các công cụ này có thể đề xuất tiêu đề, mô tả và từ khóa phù hợp, từ đó nâng cao khả năng tiếp cận khách hàng.
+
+2.3.2 Hệ thống gợi ý sản phẩm
+Hệ thống gợi ý sản phẩm là một thành phần nội bộ có nhiệm vụ phân tích hành vi người dùng để đề xuất các sản phẩm phù hợp. Hệ thống này có thể dựa trên lịch sử tìm kiếm, lịch sử mua hàng hoặc các sản phẩm tương tự để đưa ra gợi ý.
+Việc tích hợp hệ thống gợi ý giúp tăng khả năng khám phá sản phẩm và cải thiện trải nghiệm mua sắm của người dùng.
+
+2.3.3 Hệ thống chatbot
+Hệ thống chatbot là một thành phần hỗ trợ tương tác giữa người dùng và hệ thống. Chatbot có thể trả lời các câu hỏi phổ biến liên quan đến sản phẩm, đơn hàng hoặc các chính sách của hệ thống.
+Chatbot hoạt động dựa trên dữ liệu có sẵn và các mô hình xử lý ngôn ngữ tự nhiên, giúp cung cấp phản hồi nhanh chóng và giảm tải cho người bán.
+
+2.3.4 Hệ thống thông báo
+Hệ thống thông báo có nhiệm vụ gửi các thông tin quan trọng đến người dùng, bao gồm xác nhận đơn hàng, cập nhật trạng thái giao hàng hoặc các thông báo từ hệ thống.
+Hệ thống này có thể sử dụng nhiều kênh khác nhau như email, SMS hoặc thông báo đẩy trên ứng dụng.
+
+2.4 Nhu cầu và mong muốn của các tác nhân
+
+2.4.1 Nhu cầu của người mua
+Người mua mong muốn có một hệ thống dễ sử dụng, cho phép họ tìm kiếm sản phẩm nhanh chóng và chính xác. Họ cần được cung cấp đầy đủ thông tin về sản phẩm để có thể đưa ra quyết định mua hàng.
+Ngoài ra, người mua mong muốn quy trình mua hàng đơn giản, an toàn và có thể theo dõi trạng thái đơn hàng một cách rõ ràng. Khả năng nhận hỗ trợ nhanh chóng thông qua chatbot hoặc người bán cũng là một yếu tố quan trọng.
+
+2.4.2 Nhu cầu của người bán
+Người bán cần một hệ thống cho phép họ quản lý sản phẩm và cửa hàng một cách hiệu quả. Họ mong muốn có các công cụ hỗ trợ tối ưu nội dung sản phẩm để thu hút khách hàng.
+Ngoài ra, người bán cần có khả năng quản lý đơn hàng, theo dõi doanh thu và tương tác với khách hàng một cách thuận tiện.
+
+2.4.3 Nhu cầu của quản trị viên
+Quản trị viên cần có các công cụ mạnh mẽ để quản lý và giám sát hệ thống. Họ cần đảm bảo hệ thống hoạt động ổn định, an toàn và xử lý kịp thời các vấn đề phát sinh.
+
+2.4.4 Nhu cầu đối với các thành phần thông minh
+Các thành phần trí tuệ nhân tạo và hệ thống hỗ trợ cần hoạt động chính xác, ổn định và mang lại giá trị thực tế. Việc tích hợp các thành phần này phải đảm bảo không làm phức tạp hệ thống mà ngược lại, giúp cải thiện trải nghiệm người dùng và hiệu quả hoạt động.
+ 
+CHƯƠNG 3: YÊU CẦU HỆ THỐNG
+
+3.1 Giới thiệu
+Chương này mô tả chi tiết các yêu cầu của hệ thống, bao gồm yêu cầu chức năng và yêu cầu phi chức năng. Các yêu cầu này được xây dựng dựa trên phân tích các tác nhân trong Chương 2 và phản ánh các chức năng cần thiết để hệ thống hoạt động hiệu quả.
+Yêu cầu chức năng mô tả các hành vi mà hệ thống phải thực hiện để đáp ứng nhu cầu của người dùng. Yêu cầu phi chức năng mô tả các tiêu chí về hiệu suất, bảo mật, khả năng mở rộng và trải nghiệm người dùng.
+
+3.2 Yêu cầu chức năng
+
+3.2.1 Nhóm chức năng dành cho người mua (Buyer)
+1. Đăng ký tài khoản
+Người dùng có thể tạo tài khoản bằng email hoặc số điện thoại.
+Hệ thống kiểm tra tính hợp lệ của thông tin.
+
+2. Đăng nhập
+Người dùng đăng nhập bằng tài khoản đã đăng ký.
+Hệ thống xác thực thông tin đăng nhập.
+
+3. Quản lý thông tin cá nhân
+Người dùng có thể xem và cập nhật thông tin cá nhân.
+
+4. Tìm kiếm sản phẩm (Keyword-based Search)
+Người dùng tìm kiếm sản phẩm bằng từ khóa.
+Hệ thống trả về danh sách kết quả phù hợp.
+
+5. Tìm kiếm theo ý định (Intent-based Search)
+Người dùng nhập truy vấn dạng tự nhiên.
+Hệ thống phân tích ý định và chuyển thành điều kiện tìm kiếm.
+
+6. Xem chi tiết sản phẩm
+Hiển thị thông tin sản phẩm: mô tả, giá, hình ảnh, đánh giá.
+
+7. Quản lý giỏ hàng
+Thêm, cập nhật hoặc xóa sản phẩm trong giỏ hàng.
+
+8. Đặt hàng
+Tạo đơn hàng từ giỏ hàng.
+
+9. Thanh toán
+Hỗ trợ thanh toán online và COD.
+
+10. Theo dõi đơn hàng
+Người dùng xem trạng thái đơn hàng.
+
+11. Đánh giá sản phẩm
+Người dùng đánh giá sau khi mua.
+
+12. Chat với người bán / chatbot
+Gửi tin nhắn đến người bán.
+Nhận phản hồi từ chatbot khi cần.
+
+13. Đăng ký mở cửa hàng
+Người dùng có thể đăng ký trở thành người bán.
+Sau khi được duyệt, tài khoản có thêm quyền seller.
+
+14. Báo cáo sản phẩm / người bán
+Người dùng có thể báo cáo vi phạm.
+Báo cáo được gửi đến quản trị viên.
+
+3.2.2 Nhóm chức năng dành cho người bán (Seller)
+1. Quản lý cửa hàng
+Tạo và cập nhật thông tin cửa hàng.
+
+2. Quản lý sản phẩm
+Thêm, sửa, xóa sản phẩm.
+Cập nhật giá, mô tả, hình ảnh.
+
+3. Quản lý đơn hàng
+Xem và xử lý đơn hàng.
+Cập nhật trạng thái.
+
+4. Tương tác với khách hàng
+Trả lời tin nhắn từ người mua.
+
+5. Thống kê và báo cáo
+Xem doanh thu và hiệu quả kinh doanh.
+
+6. Tối ưu nội dung sản phẩm (AI Support)
+Hệ thống hỗ trợ tạo mô tả sản phẩm.
+Đề xuất tiêu đề và từ khóa.
+
+7. Cấu hình chatbot (Custom Chatbox)
+Người bán có thể thiết lập chatbot riêng.
+Cho phép:
+Cấu hình API key
+Thiết lập prompt ban đầu
+Sử dụng template trả lời
+
+3.2.3 Nhóm chức năng dành cho quản trị viên (Admin)
+1. Quản lý người dùng
+Xem, chỉnh sửa, khóa tài khoản.
+
+2. Quản lý cửa hàng và sản phẩm
+Kiểm duyệt nội dung.
+Xử lý vi phạm.
+
+3. Giám sát hệ thống
+Theo dõi hoạt động và phát hiện bất thường.
+
+4. Quản lý giao dịch
+Theo dõi các giao dịch.
+
+5. Báo cáo và thống kê
+Cung cấp dữ liệu phân tích.
+
+6. Xử lý báo cáo
+Xem các báo cáo từ người dùng.
+Thực hiện hành động:
+Xóa sản phẩm
+Khóa tài khoản
+Cảnh báo người bán
+
+3.2.4 Nhóm chức năng hỗ trợ thông minh (AI Features)
+1. Phân tích truy vấn người dùng
+Xử lý truy vấn để xác định ý định tìm kiếm.
+
+2. Chatbot tự động
+Trả lời câu hỏi phổ biến của người dùng.
+
+3. Gợi ý sản phẩm
+Đề xuất sản phẩm dựa trên hành vi người dùng.
+
+4. Tạo nội dung sản phẩm
+Hỗ trợ tạo mô tả sản phẩm tự động.
+
+Tôi đã tự động tích hợp các bước "Gửi thông báo hệ thống" vào Luồng cơ bản và Điểm mở rộng của các use case liên quan như đã thảo luận. Dưới đây là các phần được cập nhật để bạn có thể sao chép và thay thế vào tài liệu:1. Nhóm use case Người mua (Buyer)2. Chức năng: Đăng ký tài khoản
+Luồng cơ bản:  
+Khách hàng truy cập trang đăng ký.  
+Khách hàng nhập thông tin gồm họ tên, email/số điện thoại và mật khẩu.  
+Hệ thống kiểm tra tính hợp lệ của thông tin.  
+Hệ thống gửi mã xác thực (OTP).  
+Khách hàng nhập mã xác thực.  
+Hệ thống tạo tài khoản và thông báo thành công.  
+Hệ thống gửi email/thông báo xác nhận đăng ký thành công đến Khách hàng.
+7. Chức năng: Đặt hàng
+Luồng cơ bản:  
+Khách hàng truy cập giỏ hàng.  
+Khách hàng chọn các sản phẩm muốn mua.  
+Khách hàng nhấn nút “Đặt hàng”.  
+Hệ thống yêu cầu nhập thông tin giao hàng (địa chỉ, số điện thoại, tên người nhận).  
+Khách hàng nhập đầy đủ thông tin.  
+Hệ thống kiểm tra tính hợp lệ của thông tin.  
+Hệ thống kiểm tra tồn kho của các sản phẩm.  
+Hệ thống hiển thị lại thông tin đơn hàng để xác nhận.  
+Khách hàng xác nhận đặt hàng.  
+Hệ thống tạo đơn hàng, lưu vào cơ sở dữ liệu, và gửi thông báo xác nhận đơn hàng đến Khách hàng và Người bán.
+8. Chức năng: Thanh toán
+Luồng cơ bản:  
+Khách hàng chọn phương thức thanh toán (COD hoặc online).  
+Nếu chọn COD: hệ thống ghi nhận phương thức thanh toán, chuyển đơn sang trạng thái chờ xử lý, và gửi thông báo về đơn hàng mới đến Người bán.  
+Nếu chọn thanh toán online:  
+Hệ thống chuyển hướng đến cổng thanh toán.  
+Khách hàng nhập thông tin thanh toán.  
+Hệ thống xử lý giao dịch với cổng thanh toán.  
+Nhận kết quả từ cổng thanh toán.  
+Nếu thành công, hệ thống cập nhật trạng thái đơn hàng là “đã thanh toán”, gửi thông báo xác nhận thanh toán thành công đến Khách hàng, và gửi thông báo về đơn hàng đã thanh toán đến Người bán.  
+Hiển thị thông báo kết quả cho khách hàng.
+9. Chức năng: Theo dõi đơn hàng
+
+Chức năng này không thay đổi Luồng cơ bản (chỉ là chức năng xem), nhưng tôi cập nhật rõ ràng Điểm mở rộng để phản ánh yêu cầu.
+Điểm mở rộng:  
+Tích hợp theo dõi vận chuyển chi tiết từ bên thứ ba.  
+Gửi thông báo tự động (qua email/thông báo đẩy) đến khách hàng ngay khi trạng thái đơn hàng thay đổi.
+12. Chức năng: Đăng ký mở cửa hàng
+Luồng cơ bản:  
+Khách hàng truy cập chức năng “Đăng ký mở cửa hàng”.  
+Nhập thông tin cửa hàng (tên, mô tả, thông tin liên hệ).  
+Gửi yêu cầu đăng ký.  
+Hệ thống lưu thông tin và chuyển đến quản trị viên.  
+Quản trị viên xem xét và phê duyệt.  
+Nếu được duyệt, hệ thống cập nhật quyền người dùng thành người bán.  
+Hệ thống gửi thông báo (email/push) kết quả phê duyệt thành công đến khách hàng.
+2. Nhóm use case Người bán (Seller)3. Chức năng: Quản lý đơn hàng
+Luồng cơ bản:  
+Người bán truy cập chức năng “Quản lý đơn hàng”.  
+Hệ thống hiển thị danh sách các đơn hàng của cửa hàng.  
+Người bán chọn một đơn hàng cụ thể.  
+Hệ thống hiển thị chi tiết đơn hàng (sản phẩm, số lượng, thông tin giao hàng).  
+Người bán xác nhận đơn hàng.  
+Người bán cập nhật trạng thái đơn hàng (đang xử lý, đang giao, hoàn thành).  
+Hệ thống lưu trạng thái mới và gửi thông báo cập nhật trạng thái đến Khách hàng (qua email/thông báo đẩy).
+3. Nhóm use case Quản trị viên (Admin)6. Chức năng: Xử lý báo cáo
+Luồng cơ bản:  
+Quản trị viên truy cập chức năng “Xử lý báo cáo”.  
+Hệ thống hiển thị danh sách các báo cáo từ người dùng.  
+Quản trị viên chọn một báo cáo cụ thể.  
+Hệ thống hiển thị chi tiết báo cáo (đối tượng bị báo cáo, nội dung, lý do).  
+Quản trị viên kiểm tra thông tin liên quan (sản phẩm, người bán).  
+Quản trị viên đánh giá mức độ vi phạm.  
+Quản trị viên thực hiện hành động xử lý, bao gồm:
+
+  - Xóa sản phẩm vi phạm
+  - Khóa tài khoản người bán
+  - Gửi cảnh báo đến người bán  
+    Hệ thống ghi nhận hành động xử lý.  
+    Hệ thống gửi thông báo về hành động xử lý (xóa sản phẩm/cảnh báo/khóa tài khoản) đến Người bán bị báo cáo và gửi thông báo kết quả xử lý đến Người mua (người gửi báo cáo).  
+    Hệ thống cập nhật trạng thái báo cáo (đã xử lý).
+3.2.5 Nhóm chức năng hệ thống
+1. Hệ thống thông báo
+Gửi thông báo về đơn hàng và hoạt động hệ thống.
+
+2. Tích hợp thanh toán
+Kết nối với cổng thanh toán bên ngoài.
+
+3. Tích hợp vận chuyển
+Theo dõi trạng thái giao hàng.
+
+4. Hệ thống chat thời gian thực
+Hỗ trợ giao tiếp giữa người mua và người bán.
+
+3.3 Yêu cầu phi chức năng
+
+3.3.1 Hiệu suất
+Thời gian phản hồi dưới 3 giây.
+Hỗ trợ nhiều người dùng đồng thời.
+
+3.3.2 Bảo mật
+Mã hóa dữ liệu nhạy cảm.
+Chống SQL Injection, XSS, CSRF.
+
+3.3.3 Khả năng mở rộng
+Dễ dàng mở rộng hệ thống.
+
+3.3.4 Độ khả dụng
+Hệ thống hoạt động ổn định, ít downtime.
+
+3.3.5 Trải nghiệm người dùng
+Giao diện thân thiện, dễ sử dụng.
+
+3.3.6 Bảo trì và giám sát
+Hỗ trợ logging và monitoring.
+
+3.3.7 Tuân thủ pháp lý
+Tuân thủ quy định về dữ liệu và TMĐT.
+ 
+3.4 Ràng buộc hệ thống (System Constraints)
+Trong quá trình thiết kế và triển khai, hệ thống được xây dựng dựa trên các ràng buộc công nghệ cụ thể nhằm đảm bảo tính khả thi và phù hợp với phạm vi của dự án.
+
+3.4.1 Ràng buộc về công nghệ
+Hệ thống được phát triển theo kiến trúc web, bao gồm frontend và backend.
+Backend được xây dựng باستخدام FastAPI, một framework hỗ trợ lập trình bất đồng bộ (asynchronous), phù hợp với việc xây dựng các API hiệu suất cao.
+Cơ sở dữ liệu sử dụng PostgreSQL để lưu trữ dữ liệu có cấu trúc như người dùng, sản phẩm và đơn hàng.
+Hệ thống được thiết kế theo hướng API-based, cho phép dễ dàng mở rộng và tích hợp với các dịch vụ khác.
+
+3.4.2 Ràng buộc về kiến trúc hệ thống
+Hệ thống backend được tổ chức theo mô hình phân lớp (layered architecture), bao gồm:
+API Layer: xử lý request/response từ client
+Service Layer: xử lý logic nghiệp vụ
+Data Access Layer: tương tác với cơ sở dữ liệu
+Cách tổ chức này giúp hệ thống dễ bảo trì và mở rộng trong tương lai.
+
+3.4.3 Ràng buộc về bảo mật
+Hệ thống sử dụng cơ chế xác thực dựa trên JSON Web Token (JWT):
+Access Token được sử dụng để xác thực các request từ client.
+Refresh Token được sử dụng để cấp lại access token khi hết hạn.
+Mật khẩu người dùng được mã hóa trước khi lưu trữ trong cơ sở dữ liệu. Hệ thống cũng cần triển khai các biện pháp bảo vệ chống lại các tấn công phổ biến như SQL Injection và Cross-Site Scripting (XSS).
+
+3.4.4 Ràng buộc về tích hợp trí tuệ nhân tạo
+Các chức năng trí tuệ nhân tạo được triển khai thông qua việc tích hợp với dịch vụ AI bên ngoài thông qua API.
+Hệ thống sử dụng AI để:
+Phân tích truy vấn tìm kiếm (intent-based search)
+Hỗ trợ chatbot trả lời câu hỏi
+Tạo nội dung sản phẩm
+Ngoài ra, hệ thống cho phép người bán cấu hình chatbot thông qua việc thiết lập API key và prompt, nhằm cá nhân hóa trải nghiệm người dùng.
+
+3.4.5 Ràng buộc về giao tiếp thời gian thực
+Hệ thống sử dụng WebSocket để hỗ trợ chức năng chat thời gian thực giữa người mua và người bán.
+Giải pháp này giúp giảm độ trễ so với các phương pháp truyền thống và cải thiện trải nghiệm người dùng.
+
+3.4.6 Ràng buộc về hệ thống thông báo
+Hệ thống sử dụng dịch vụ email (SMTP) để gửi các thông báo quan trọng đến người dùng, bao gồm xác nhận đơn hàng và cập nhật trạng thái.
+
+3.4.7 Ràng buộc về lưu trữ dữ liệu
+Dữ liệu có cấu trúc được lưu trữ trong cơ sở dữ liệu PostgreSQL.
+Các tệp tin như hình ảnh sản phẩm được lưu trữ trên hệ thống file của server (local storage).
+Cơ sở dữ liệu chỉ lưu trữ đường dẫn (URL) đến các tệp tin này.
+Cách tiếp cận này giúp tối ưu hiệu suất và giảm tải cho cơ sở dữ liệu.
+
+3.4.8 Ràng buộc về triển khai hệ thống
+Hệ thống được đóng gói và triển khai باستخدام Docker nhằm đảm bảo tính nhất quán giữa các môi trường phát triển và triển khai.
+Trong phạm vi dự án, hệ thống được triển khai ở mức prototype và có thể chạy trên môi trường local hoặc server đơn giản.
+ 
+CHƯƠNG 4: MÔ HÌNH HÓA HỆ THỐNG
+
+4.2.1 Nhóm use case người mua (Buyer)
+
+1. Chức năng: Đăng nhập hệ thống
+Mô tả:
+Khách hàng đăng nhập vào hệ thống để sử dụng các chức năng như tìm kiếm sản phẩm, đặt hàng, quản lý tài khoản và tương tác với người bán.
+Luồng cơ bản:
+Khách hàng truy cập trang đăng nhập.
+Khách hàng nhập email/số điện thoại và mật khẩu.
+Hệ thống kiểm tra thông tin đăng nhập.
+Nếu hợp lệ, hệ thống tạo access token và cấp quyền truy cập.
+Hệ thống chuyển hướng khách hàng đến trang chủ.
+Luồng thay thế:
+Sai mật khẩu: Hiển thị thông báo lỗi và cho phép nhập lại.
+Tài khoản không tồn tại: Hiển thị thông báo yêu cầu đăng ký.
+Tài khoản bị khóa: Từ chối đăng nhập và hiển thị lý do.
+Quên mật khẩu: Người dùng chọn chức năng đặt lại mật khẩu.
+Yêu cầu đặc biệt:
+Mật khẩu phải được mã hóa trước khi lưu trữ.
+Hỗ trợ cơ chế xác thực bằng JWT (access token và refresh token).
+Có thể mở rộng xác thực hai yếu tố (2FA).
+Tiền điều kiện:
+Khách hàng đã có tài khoản trong hệ thống.
+Hậu điều kiện:
+Nếu thành công: Khách hàng đăng nhập và có quyền truy cập hệ thống.
+Nếu thất bại: Khách hàng nhận thông báo lỗi và có thể thử lại.
+Điểm mở rộng:
+Hỗ trợ đăng nhập bằng Google, Facebook.
+
+2. Chức năng: Đăng ký tài khoản
+Mô tả:
+Khách hàng đăng ký tài khoản để có thể sử dụng các chức năng như đặt hàng, đánh giá sản phẩm và quản lý thông tin cá nhân.
+Luồng cơ bản:
+Khách hàng truy cập trang đăng ký.
+Khách hàng nhập thông tin gồm họ tên, email/số điện thoại và mật khẩu.
+Hệ thống kiểm tra tính hợp lệ của thông tin.
+Hệ thống gửi mã xác thực (OTP).
+Khách hàng nhập mã xác thực.
+Hệ thống tạo tài khoản và thông báo thành công.
+Luồng thay thế:
+Email/số điện thoại đã tồn tại.
+Mật khẩu không hợp lệ.
+Mã OTP sai hoặc hết hạn.
+Yêu cầu đặc biệt:
+Mật khẩu phải được mã hóa.
+Phải xác thực email/số điện thoại trước khi tạo tài khoản.
+Tiền điều kiện:
+Người dùng chưa có tài khoản.
+Hậu điều kiện:
+Tài khoản được tạo thành công hoặc hiển thị lỗi.
+Điểm mở rộng:
+Đăng ký bằng tài khoản mạng xã hội.
+
+3. Chức năng: Tìm kiếm sản phẩm (Keyword-based Search)
+Mô tả:
+Khách hàng tìm kiếm sản phẩm bằng từ khóa cụ thể.
+Luồng cơ bản:
+Khách hàng nhập từ khóa vào thanh tìm kiếm.
+Hệ thống tiếp nhận và xử lý truy vấn.
+Hệ thống tìm kiếm trong cơ sở dữ liệu.
+Trả về danh sách sản phẩm phù hợp.
+Luồng thay thế:
+Không có kết quả phù hợp.
+Yêu cầu đặc biệt:
+Tối ưu tốc độ tìm kiếm.
+Hỗ trợ tìm kiếm không phân biệt hoa thường.
+Tiền điều kiện:
+Hệ thống có dữ liệu sản phẩm.
+Hậu điều kiện:
+Danh sách sản phẩm được hiển thị.
+Điểm mở rộng:
+Gợi ý từ khóa tìm kiếm.
+
+4. Chức năng: Tìm kiếm theo ý định (Intent-based Search)
+Mô tả:
+Khách hàng tìm kiếm sản phẩm bằng câu mô tả tự nhiên thay vì từ khóa.
+Luồng cơ bản:
+Khách hàng nhập truy vấn dạng tự nhiên.
+Hệ thống gửi truy vấn đến module AI.
+Hệ thống phân tích ý định (loại sản phẩm, giá, mục đích).
+Chuyển thành truy vấn có cấu trúc.
+Trả về kết quả phù hợp.
+Luồng thay thế:
+AI không hiểu truy vấn → fallback về keyword search.
+Yêu cầu đặc biệt:
+Tích hợp API AI bên ngoài.
+Đảm bảo thời gian phản hồi hợp lý.
+Tiền điều kiện:
+Module AI hoạt động bình thường.
+Hậu điều kiện:
+Kết quả tìm kiếm được hiển thị.
+Điểm mở rộng:
+Cá nhân hóa kết quả theo người dùng.
+3. Chức năng: Tìm kiếm sản phẩm (Keyword-based Search)
+Mô tả:
+Khách hàng sử dụng chức năng tìm kiếm để tìm các sản phẩm bằng cách nhập từ khóa cụ thể (ví dụ: tên sản phẩm, thương hiệu, loại sản phẩm…). Đây là phương thức tìm kiếm cơ bản và phổ biến nhất trong hệ thống.
+Luồng cơ bản:
+Khách hàng nhập từ khóa vào thanh tìm kiếm trên giao diện hệ thống.
+Hệ thống tiếp nhận truy vấn và thực hiện tiền xử lý (loại bỏ ký tự đặc biệt, chuẩn hóa chữ hoa/thường, tách từ khóa).
+Hệ thống thực hiện truy vấn dữ liệu trên cơ sở dữ liệu sản phẩm dựa trên từ khóa đã xử lý.
+Hệ thống sắp xếp kết quả theo mức độ liên quan (relevance) hoặc các tiêu chí mặc định (ví dụ: độ phổ biến, đánh giá).
+Hệ thống trả về danh sách sản phẩm phù hợp cho khách hàng.
+Khách hàng có thể lựa chọn sản phẩm từ danh sách kết quả để xem chi tiết.
+Luồng thay thế:
+Không có kết quả phù hợp: Hệ thống hiển thị thông báo “Không tìm thấy sản phẩm phù hợp” và có thể gợi ý từ khóa khác.
+Từ khóa quá ngắn hoặc không hợp lệ: Hệ thống yêu cầu nhập lại từ khóa hợp lệ.
+Lỗi hệ thống trong quá trình truy vấn: Hiển thị thông báo lỗi tạm thời.
+Yêu cầu đặc biệt:
+Hệ thống cần tối ưu hiệu suất tìm kiếm để đảm bảo thời gian phản hồi nhanh.
+Hỗ trợ tìm kiếm không phân biệt chữ hoa/chữ thường và có thể xử lý tiếng Việt có dấu/không dấu.
+Có thể tích hợp cơ chế gợi ý từ khóa (auto-suggestion) trong quá trình nhập.
+Tiền điều kiện:
+Hệ thống đã có dữ liệu sản phẩm trong cơ sở dữ liệu.
+Hậu điều kiện:
+Danh sách sản phẩm phù hợp với từ khóa được hiển thị cho khách hàng.
+Điểm mở rộng:
+Tích hợp bộ lọc nâng cao (giá, danh mục, đánh giá…).
+Gợi ý sản phẩm liên quan dựa trên hành vi tìm kiếm trước đó.
+
+4. Chức năng: Tìm kiếm theo ý định (Intent-based Search)
+Mô tả:
+Khách hàng tìm kiếm sản phẩm bằng cách nhập câu mô tả tự nhiên (ví dụ: “giày chạy bộ giá rẻ cho sinh viên”). Hệ thống sử dụng trí tuệ nhân tạo để phân tích ý định của người dùng và trả về kết quả phù hợp hơn so với tìm kiếm từ khóa truyền thống.
+Luồng cơ bản:
+Khách hàng nhập truy vấn dạng ngôn ngữ tự nhiên vào thanh tìm kiếm.
+Hệ thống tiếp nhận truy vấn và gửi đến module AI thông qua API.
+Module AI phân tích truy vấn để trích xuất các thông tin quan trọng như loại sản phẩm, mức giá, mục đích sử dụng.
+Hệ thống chuyển đổi kết quả phân tích thành truy vấn có cấu trúc (structured query).
+Hệ thống thực hiện truy vấn dữ liệu sản phẩm dựa trên các điều kiện đã được trích xuất.
+Hệ thống sắp xếp và trả về danh sách sản phẩm phù hợp với ý định của người dùng.
+Khách hàng xem và lựa chọn sản phẩm từ kết quả trả về.
+Luồng thay thế:
+AI không thể phân tích truy vấn (truy vấn mơ hồ hoặc không rõ ràng): Hệ thống fallback sang tìm kiếm theo từ khóa.
+Dịch vụ AI không khả dụng (lỗi API): Hệ thống thông báo tạm thời và sử dụng cơ chế tìm kiếm cơ bản.
+Không có kết quả phù hợp: Hiển thị thông báo và gợi ý điều chỉnh truy vấn.
+Yêu cầu đặc biệt:
+Hệ thống cần tích hợp với dịch vụ AI bên ngoài thông qua API.
+Đảm bảo thời gian phản hồi ở mức chấp nhận được (không gây chậm trải nghiệm người dùng).
+Cần xử lý an toàn dữ liệu gửi đến dịch vụ AI.
+Tiền điều kiện:
+Module AI hoạt động bình thường và có thể truy cập được.
+Hậu điều kiện:
+Danh sách sản phẩm phù hợp với ý định người dùng được hiển thị.
+Điểm mở rộng:
+Cá nhân hóa kết quả tìm kiếm dựa trên lịch sử người dùng.
+Kết hợp với hệ thống gợi ý để tăng độ chính xác.
+
+5. Chức năng: Xem chi tiết sản phẩm
+Mô tả:
+Khách hàng xem thông tin chi tiết của một sản phẩm cụ thể để đưa ra quyết định mua hàng. Thông tin bao gồm mô tả, giá, hình ảnh, đánh giá và các thông tin liên quan khác.
+Luồng cơ bản:
+Khách hàng chọn một sản phẩm từ danh sách kết quả tìm kiếm hoặc danh mục.
+Hệ thống nhận yêu cầu và truy xuất thông tin chi tiết của sản phẩm từ cơ sở dữ liệu.
+Hệ thống hiển thị đầy đủ thông tin sản phẩm bao gồm: tên sản phẩm, mô tả, giá, hình ảnh, số lượng còn lại, đánh giá từ người dùng khác.
+Khách hàng có thể thực hiện các hành động tiếp theo như thêm vào giỏ hàng, chat với người bán hoặc tiếp tục xem sản phẩm khác.
+Luồng thay thế:
+Sản phẩm không tồn tại hoặc đã bị xóa: Hệ thống hiển thị thông báo lỗi.
+Dữ liệu sản phẩm không đầy đủ: Hiển thị thông tin có sẵn và cảnh báo.
+Lỗi tải hình ảnh: Hiển thị ảnh mặc định.
+Yêu cầu đặc biệt:
+Tối ưu tốc độ tải dữ liệu và hình ảnh.
+Hỗ trợ hiển thị tốt trên nhiều thiết bị (responsive).
+Tiền điều kiện:
+Sản phẩm tồn tại trong hệ thống.
+Hậu điều kiện:
+Thông tin chi tiết sản phẩm được hiển thị cho khách hàng.
+Điểm mở rộng:
+Hiển thị sản phẩm liên quan hoặc đề xuất.
+Hiển thị lịch sử giá hoặc khuyến mãi.
+ 6. Chức năng: Quản lý giỏ hàng
+Mô tả:
+Khách hàng sử dụng chức năng giỏ hàng để lưu trữ các sản phẩm quan tâm trước khi tiến hành đặt hàng. Người dùng có thể thêm, chỉnh sửa số lượng hoặc xóa sản phẩm khỏi giỏ hàng.
+Luồng cơ bản:
+Khách hàng chọn một sản phẩm từ danh sách hoặc trang chi tiết sản phẩm.
+Khách hàng nhấn nút “Thêm vào giỏ hàng”.
+Hệ thống kiểm tra tình trạng sản phẩm (còn hàng, hợp lệ).
+Hệ thống thêm sản phẩm vào giỏ hàng của người dùng.
+Khách hàng truy cập trang giỏ hàng để xem danh sách sản phẩm đã thêm.
+Khách hàng có thể thay đổi số lượng sản phẩm.
+Hệ thống cập nhật lại tổng giá trị đơn hàng tương ứng.
+Khách hàng có thể xóa sản phẩm khỏi giỏ hàng nếu không còn nhu cầu.
+Luồng thay thế:
+Sản phẩm hết hàng: Hệ thống thông báo không thể thêm vào giỏ.
+Số lượng vượt quá tồn kho: Hệ thống yêu cầu giảm số lượng.
+Người dùng chưa đăng nhập: Hệ thống yêu cầu đăng nhập hoặc lưu tạm giỏ hàng (nếu hỗ trợ).
+Yêu cầu đặc biệt:
+Giỏ hàng cần được đồng bộ theo tài khoản người dùng.
+Đảm bảo cập nhật giá và số lượng theo thời gian thực.
+Tiền điều kiện:
+Sản phẩm tồn tại trong hệ thống.
+Hậu điều kiện:
+Giỏ hàng được cập nhật với danh sách sản phẩm mới nhất.
+Điểm mở rộng:
+Lưu giỏ hàng cho người dùng chưa đăng nhập (guest cart).
+Gợi ý sản phẩm liên quan trong giỏ hàng.
+
+7. Chức năng: Đặt hàng
+Mô tả:
+Khách hàng thực hiện tạo đơn hàng từ các sản phẩm đã chọn trong giỏ hàng, cung cấp thông tin giao hàng và xác nhận mua hàng.
+Luồng cơ bản:
+Khách hàng truy cập giỏ hàng.
+Khách hàng chọn các sản phẩm muốn mua.
+Khách hàng nhấn nút “Đặt hàng”.
+Hệ thống yêu cầu nhập thông tin giao hàng (địa chỉ, số điện thoại, tên người nhận).
+Khách hàng nhập đầy đủ thông tin.
+Hệ thống kiểm tra tính hợp lệ của thông tin.
+Hệ thống kiểm tra tồn kho của các sản phẩm.
+Hệ thống hiển thị lại thông tin đơn hàng để xác nhận.
+Khách hàng xác nhận đặt hàng.
+Hệ thống tạo đơn hàng và lưu vào cơ sở dữ liệu.
+Luồng thay thế:
+Thiếu thông tin giao hàng: Hệ thống yêu cầu nhập đầy đủ.
+Sản phẩm không còn đủ số lượng: Hệ thống yêu cầu điều chỉnh.
+Người dùng hủy thao tác: Hệ thống quay lại giỏ hàng.
+Yêu cầu đặc biệt:
+Đảm bảo tính toàn vẹn dữ liệu đơn hàng.
+Kiểm tra tồn kho chính xác tại thời điểm đặt hàng.
+Tiền điều kiện:
+Giỏ hàng không rỗng.
+Người dùng đã đăng nhập.
+Hậu điều kiện:
+Đơn hàng được tạo và chờ thanh toán hoặc xử lý tiếp theo.
+Điểm mở rộng:
+Lưu nhiều địa chỉ giao hàng.
+Tự động điền thông tin từ hồ sơ người dùng.
+
+8. Chức năng: Thanh toán
+Mô tả:
+Khách hàng thực hiện thanh toán cho đơn hàng đã tạo thông qua các phương thức như thanh toán khi nhận hàng (COD) hoặc thanh toán trực tuyến.
+Luồng cơ bản:
+Khách hàng chọn phương thức thanh toán (COD hoặc online).
+Nếu chọn COD: hệ thống ghi nhận phương thức thanh toán và chuyển đơn sang trạng thái chờ xử lý.
+Nếu chọn thanh toán online:
+Hệ thống chuyển hướng đến cổng thanh toán.
+Khách hàng nhập thông tin thanh toán.
+Hệ thống xử lý giao dịch với cổng thanh toán.
+Nhận kết quả từ cổng thanh toán.
+Nếu thành công, hệ thống cập nhật trạng thái đơn hàng là “đã thanh toán”.
+Hiển thị thông báo kết quả cho khách hàng.
+Luồng thay thế:
+Thanh toán thất bại: Hiển thị thông báo lỗi và cho phép thử lại.
+Người dùng hủy thanh toán: Đơn hàng vẫn tồn tại nhưng chưa thanh toán.
+Lỗi kết nối cổng thanh toán: Thông báo lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo bảo mật thông tin thanh toán.
+Không lưu trữ thông tin thẻ trực tiếp trên hệ thống.
+Tiền điều kiện:
+Đơn hàng đã được tạo.
+Hậu điều kiện:
+Đơn hàng được cập nhật trạng thái thanh toán tương ứng.
+Điểm mở rộng:
+Hỗ trợ nhiều cổng thanh toán khác nhau.
+Lưu lịch sử thanh toán.
+ 
+9. Chức năng: Theo dõi đơn hàng
+Mô tả:
+Khách hàng theo dõi trạng thái xử lý và vận chuyển của các đơn hàng đã đặt nhằm nắm được tiến trình giao hàng.
+Luồng cơ bản:
+Khách hàng truy cập vào mục “Đơn hàng của tôi”.
+Hệ thống hiển thị danh sách các đơn hàng đã tạo.
+Khách hàng chọn một đơn hàng cụ thể.
+Hệ thống hiển thị chi tiết đơn hàng bao gồm trạng thái (chờ xử lý, đang giao, đã giao, đã hủy).
+Khách hàng theo dõi tiến trình cập nhật trạng thái theo thời gian.
+Luồng thay thế:
+Không có đơn hàng nào: Hệ thống hiển thị thông báo tương ứng.
+Đơn hàng không tồn tại: Hiển thị lỗi.
+Yêu cầu đặc biệt:
+Trạng thái đơn hàng cần được cập nhật kịp thời và chính xác.
+Tiền điều kiện:
+Khách hàng đã đăng nhập và đã có đơn hàng.
+Hậu điều kiện:
+Thông tin trạng thái đơn hàng được hiển thị cho khách hàng.
+Điểm mở rộng:
+Tích hợp theo dõi vận chuyển chi tiết từ bên thứ ba.
+Gửi thông báo khi trạng thái thay đổi.
+
+10. Chức năng: Đánh giá sản phẩm
+Mô tả:
+Khách hàng thực hiện đánh giá và nhận xét sản phẩm sau khi đã mua, nhằm cung cấp thông tin tham khảo cho các khách hàng khác.
+Luồng cơ bản:
+Khách hàng truy cập danh sách đơn hàng.
+Chọn sản phẩm đã mua.
+Chọn chức năng “Đánh giá sản phẩm”.
+Nhập nội dung đánh giá và số sao (rating).
+Gửi đánh giá.
+Hệ thống lưu đánh giá và hiển thị trên trang sản phẩm.
+Luồng thay thế:
+Khách hàng chưa mua sản phẩm: Không cho phép đánh giá.
+Nội dung đánh giá không hợp lệ: Yêu cầu nhập lại.
+Yêu cầu đặc biệt:
+Ngăn chặn spam hoặc đánh giá không hợp lệ.
+Tiền điều kiện:
+Khách hàng đã mua và nhận sản phẩm.
+Hậu điều kiện:
+Đánh giá được lưu và hiển thị.
+Điểm mở rộng:
+Cho phép chỉnh sửa hoặc xóa đánh giá.
+
+11. Chức năng: Chat với người bán / chatbot
+Mô tả:
+Khách hàng có thể trao đổi trực tiếp với người bán để hỏi thông tin sản phẩm hoặc nhận hỗ trợ. Trong một số trường hợp, chatbot có thể tự động trả lời.
+Luồng cơ bản:
+Khách hàng truy cập trang sản phẩm hoặc cửa hàng.
+Chọn chức năng “Chat”.
+Nhập nội dung tin nhắn.
+Hệ thống gửi tin nhắn đến người bán thông qua kênh realtime (WebSocket).
+Người bán nhận và phản hồi.
+Khách hàng nhận phản hồi và tiếp tục trao đổi.
+Luồng thay thế:
+Người bán không phản hồi: Chatbot có thể trả lời tự động.
+Kết nối mạng bị gián đoạn: Tin nhắn không gửi được.
+Lỗi hệ thống chat: Hiển thị thông báo lỗi.
+Yêu cầu đặc biệt:
+Hỗ trợ giao tiếp thời gian thực (realtime).
+Đảm bảo độ trễ thấp và ổn định.
+Tiền điều kiện:
+Khách hàng đã truy cập hệ thống.
+Hậu điều kiện:
+Tin nhắn được gửi và nhận giữa các bên.
+Điểm mở rộng:
+Lưu lịch sử chat.
+Tích hợp chatbot AI nâng cao.
+
+12. Chức năng: Đăng ký mở cửa hàng
+Mô tả:
+Khách hàng gửi yêu cầu đăng ký trở thành người bán để có thể quản lý sản phẩm và bán hàng trên hệ thống.
+Luồng cơ bản:
+Khách hàng truy cập chức năng “Đăng ký mở cửa hàng”.
+Nhập thông tin cửa hàng (tên, mô tả, thông tin liên hệ).
+Gửi yêu cầu đăng ký.
+Hệ thống lưu thông tin và chuyển đến quản trị viên.
+Quản trị viên xem xét và phê duyệt.
+Nếu được duyệt, hệ thống cập nhật quyền người dùng thành người bán.
+Thông báo kết quả cho khách hàng.
+Luồng thay thế:
+Thông tin không hợp lệ: Yêu cầu nhập lại.
+Yêu cầu bị từ chối: Thông báo lý do.
+Yêu cầu đặc biệt:
+Đảm bảo quy trình kiểm duyệt trước khi cấp quyền seller.
+Tiền điều kiện:
+Khách hàng đã đăng nhập.
+Hậu điều kiện:
+Tài khoản được nâng cấp hoặc bị từ chối.
+Điểm mở rộng:
+Tự động phê duyệt với một số điều kiện đơn giản.
+
+13. Chức năng: Báo cáo sản phẩm / người bán
+Mô tả:
+Khách hàng báo cáo các sản phẩm hoặc người bán có dấu hiệu vi phạm nhằm giúp hệ thống kiểm soát nội dung và đảm bảo chất lượng dịch vụ.
+Luồng cơ bản:
+Khách hàng truy cập trang sản phẩm hoặc cửa hàng.
+Chọn chức năng “Báo cáo”.
+Chọn loại vi phạm (spam, lừa đảo, nội dung không phù hợp…).
+Nhập nội dung chi tiết.
+Gửi báo cáo.
+Hệ thống lưu báo cáo và chuyển đến quản trị viên.
+Quản trị viên tiếp nhận và xử lý.
+Luồng thay thế:
+Nội dung báo cáo không hợp lệ: Yêu cầu nhập lại.
+Gửi báo cáo thất bại: Hiển thị lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo ẩn danh người báo cáo (nếu cần).
+Ngăn chặn spam báo cáo.
+Tiền điều kiện:
+Khách hàng đã đăng nhập.
+Hậu điều kiện:
+Báo cáo được lưu và gửi đến admin.
+Điểm mở rộng:
+Theo dõi trạng thái xử lý báo cáo.
+ 
+4.2.2 Nhóm use case người bán (Seller)
+
+1. Chức năng: Quản lý cửa hàng
+Mô tả:
+Người bán tạo và quản lý thông tin cửa hàng của mình trên hệ thống, bao gồm các thông tin cơ bản như tên cửa hàng, mô tả, hình ảnh đại diện và thông tin liên hệ.
+Luồng cơ bản:
+Người bán truy cập chức năng “Quản lý cửa hàng”.
+Hệ thống hiển thị thông tin cửa hàng hiện tại (nếu đã tồn tại).
+Người bán nhập hoặc chỉnh sửa thông tin cửa hàng (tên, mô tả, logo, thông tin liên hệ).
+Người bán gửi yêu cầu cập nhật.
+Hệ thống kiểm tra tính hợp lệ của dữ liệu.
+Hệ thống lưu thông tin vào cơ sở dữ liệu.
+Hiển thị thông báo cập nhật thành công.
+Luồng thay thế:
+Thông tin không hợp lệ (thiếu trường bắt buộc, định dạng sai): Hệ thống yêu cầu nhập lại.
+Lỗi lưu dữ liệu: Hiển thị thông báo lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo dữ liệu cửa hàng được lưu chính xác và nhất quán.
+Hỗ trợ upload hình ảnh (logo, banner).
+Tiền điều kiện:
+Người dùng đã được cấp quyền người bán (seller).
+Hậu điều kiện:
+Thông tin cửa hàng được cập nhật hoặc giữ nguyên nếu thao tác thất bại.
+Điểm mở rộng:
+Cho phép cấu hình nhiều chi nhánh cửa hàng.
+Tùy chỉnh giao diện hiển thị cửa hàng.
+
+2. Chức năng: Quản lý sản phẩm
+Mô tả:
+Người bán quản lý danh sách sản phẩm của cửa hàng, bao gồm thêm mới, chỉnh sửa và xóa sản phẩm, cũng như cập nhật các thông tin liên quan.
+Luồng cơ bản:
+Người bán truy cập chức năng “Quản lý sản phẩm”.
+Hệ thống hiển thị danh sách sản phẩm hiện có.
+Người bán chọn “Thêm sản phẩm mới” hoặc chỉnh sửa sản phẩm hiện có.
+Người bán nhập thông tin sản phẩm (tên, mô tả, giá, số lượng, hình ảnh).
+Người bán gửi yêu cầu lưu.
+Hệ thống kiểm tra tính hợp lệ của dữ liệu.
+Hệ thống lưu thông tin sản phẩm vào cơ sở dữ liệu.
+Hiển thị thông báo thành công.
+Luồng thay thế:
+Thiếu thông tin bắt buộc: Yêu cầu nhập lại.
+Hình ảnh không hợp lệ: Từ chối upload.
+Lỗi hệ thống khi lưu dữ liệu.
+Người bán chọn xóa sản phẩm: Hệ thống xác nhận trước khi xóa.
+Yêu cầu đặc biệt:
+Hỗ trợ upload và quản lý nhiều hình ảnh cho một sản phẩm.
+Đảm bảo dữ liệu sản phẩm nhất quán với tồn kho.
+Tiền điều kiện:
+Người bán đã đăng nhập và có quyền quản lý cửa hàng.
+Hậu điều kiện:
+Danh sách sản phẩm được cập nhật tương ứng với thao tác của người bán.
+Điểm mở rộng:
+Phân loại sản phẩm theo danh mục.
+Hỗ trợ sản phẩm có nhiều biến thể (size, màu sắc).
+
+3. Chức năng: Quản lý đơn hàng
+Mô tả:
+Người bán theo dõi và xử lý các đơn hàng từ khách hàng, bao gồm xác nhận đơn, cập nhật trạng thái và xử lý các yêu cầu liên quan.
+Luồng cơ bản:
+Người bán truy cập chức năng “Quản lý đơn hàng”.
+Hệ thống hiển thị danh sách các đơn hàng của cửa hàng.
+Người bán chọn một đơn hàng cụ thể.
+Hệ thống hiển thị chi tiết đơn hàng (sản phẩm, số lượng, thông tin giao hàng).
+Người bán xác nhận đơn hàng.
+Người bán cập nhật trạng thái đơn hàng (đang xử lý, đang giao, hoàn thành).
+Hệ thống lưu trạng thái mới và cập nhật cho khách hàng.
+Luồng thay thế:
+Đơn hàng không hợp lệ hoặc đã bị hủy.
+Lỗi cập nhật trạng thái.
+Người bán từ chối đơn hàng (nếu cần).
+Yêu cầu đặc biệt:
+Đảm bảo đồng bộ trạng thái giữa người bán và người mua.
+Cập nhật trạng thái theo thời gian gần thực.
+Tiền điều kiện:
+Đã tồn tại đơn hàng từ khách hàng.
+Hậu điều kiện:
+Trạng thái đơn hàng được cập nhật chính xác.
+Điểm mở rộng:
+Tích hợp hệ thống vận chuyển để tự động cập nhật trạng thái.
+Thống kê đơn hàng theo trạng thái.
+ 
+4. Chức năng: Tương tác với khách hàng
+Mô tả:
+Người bán giao tiếp trực tiếp với khách hàng thông qua hệ thống chat để tư vấn sản phẩm, giải đáp thắc mắc và hỗ trợ trong quá trình mua hàng.
+Luồng cơ bản:
+Người bán truy cập hệ thống chat.
+Hệ thống hiển thị danh sách các cuộc hội thoại với khách hàng.
+Người bán chọn một cuộc hội thoại cụ thể.
+Hệ thống hiển thị nội dung tin nhắn giữa hai bên.
+Người bán nhập nội dung phản hồi.
+Hệ thống gửi tin nhắn đến khách hàng theo thời gian thực.
+Khách hàng nhận và phản hồi lại.
+Luồng thay thế:
+Khách hàng offline: Tin nhắn được lưu và gửi khi khách hàng online.
+Lỗi kết nối: Tin nhắn không gửi được.
+Chatbot trả lời thay (nếu được cấu hình).
+Yêu cầu đặc biệt:
+Hỗ trợ giao tiếp realtime với độ trễ thấp.
+Lưu trữ lịch sử hội thoại.
+Tiền điều kiện:
+Đã tồn tại cuộc hội thoại với khách hàng.
+Hậu điều kiện:
+Tin nhắn được gửi và lưu trữ trong hệ thống.
+Điểm mở rộng:
+Tích hợp chatbot hỗ trợ trả lời tự động.
+Phân loại hội thoại theo trạng thái (chưa đọc, đã xử lý).
+
+5. Chức năng: Thống kê và báo cáo
+Mô tả:
+Người bán xem các số liệu thống kê về hoạt động kinh doanh của cửa hàng như doanh thu, số đơn hàng, sản phẩm bán chạy.
+Luồng cơ bản:
+Người bán truy cập chức năng “Thống kê”.
+Hệ thống truy xuất dữ liệu từ cơ sở dữ liệu.
+Hệ thống tổng hợp dữ liệu theo các tiêu chí (thời gian, sản phẩm, doanh thu).
+Hiển thị kết quả dưới dạng bảng hoặc biểu đồ.
+Người bán có thể lọc theo khoảng thời gian hoặc loại dữ liệu.
+Luồng thay thế:
+Không có dữ liệu: Hiển thị thông báo.
+Lỗi truy xuất dữ liệu: Hiển thị lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo độ chính xác của dữ liệu thống kê.
+Tối ưu hiệu suất khi xử lý dữ liệu lớn.
+Tiền điều kiện:
+Có dữ liệu đơn hàng và sản phẩm.
+Hậu điều kiện:
+Thông tin thống kê được hiển thị cho người bán.
+Điểm mở rộng:
+Xuất báo cáo ra file (PDF, Excel).
+Phân tích nâng cao bằng AI.
+
+6. Chức năng: Tối ưu nội dung sản phẩm (AI Support)
+Mô tả:
+Hệ thống hỗ trợ người bán tạo và tối ưu nội dung sản phẩm bằng trí tuệ nhân tạo, bao gồm mô tả sản phẩm, tiêu đề và từ khóa nhằm tăng khả năng tiếp cận khách hàng.
+Luồng cơ bản:
+Người bán truy cập chức năng tạo/chỉnh sửa sản phẩm.
+Người bán chọn tùy chọn “Tạo nội dung bằng AI”.
+Người bán nhập thông tin cơ bản (tên sản phẩm, đặc điểm, mục tiêu khách hàng).
+Hệ thống gửi dữ liệu đến dịch vụ AI thông qua API.
+AI xử lý và trả về nội dung gợi ý (mô tả, tiêu đề, từ khóa).
+Hệ thống hiển thị kết quả cho người bán.
+Người bán có thể chỉnh sửa lại nội dung nếu cần.
+Người bán lưu nội dung vào sản phẩm.
+Luồng thay thế:
+AI không phản hồi: Hiển thị lỗi và cho phép thử lại.
+Nội dung không phù hợp: Người bán chỉnh sửa thủ công.
+Yêu cầu đặc biệt:
+Đảm bảo thời gian phản hồi của AI ở mức chấp nhận được.
+Giới hạn số lần gọi API để tránh lạm dụng.
+Tiền điều kiện:
+Hệ thống AI hoạt động bình thường.
+Hậu điều kiện:
+Nội dung sản phẩm được tạo hoặc cập nhật.
+Điểm mở rộng:
+Tự động tối ưu SEO.
+Gợi ý nội dung theo xu hướng thị trường.
+
+7. Chức năng: Cấu hình chatbot (Custom Chatbox)
+Mô tả:
+Người bán thiết lập chatbot riêng cho cửa hàng nhằm tự động trả lời khách hàng dựa trên dữ liệu và cấu hình do người bán cung cấp.
+Luồng cơ bản:
+Người bán truy cập chức năng “Cấu hình chatbot”.
+Hệ thống hiển thị giao diện cấu hình.
+Người bán nhập API key để kết nối với dịch vụ AI.
+Người bán thiết lập prompt ban đầu (hướng dẫn cách chatbot trả lời).
+Người bán chọn hoặc tạo template câu trả lời (ví dụ: hỏi giá, hỏi thông tin sản phẩm).
+Người bán lưu cấu hình.
+Hệ thống lưu thông tin và kích hoạt chatbot.
+Khi có tin nhắn từ khách hàng, chatbot sử dụng cấu hình để tạo phản hồi tự động.
+Luồng thay thế:
+API key không hợp lệ: Hệ thống báo lỗi.
+Prompt không hợp lệ hoặc rỗng: Yêu cầu nhập lại.
+Lỗi kết nối AI: Chatbot không hoạt động.
+Yêu cầu đặc biệt:
+Bảo mật API key của người bán.
+Đảm bảo chatbot phản hồi đúng ngữ cảnh và không vi phạm nội dung.
+Tiền điều kiện:
+Người bán đã đăng nhập và có quyền cấu hình chatbot.
+4.2.3 Nhóm use case quản trị viên (Admin)
+
+1. Chức năng: Quản lý người dùng
+Mô tả:
+Quản trị viên quản lý toàn bộ tài khoản người dùng trong hệ thống, bao gồm xem thông tin, chỉnh sửa và thực hiện các hành động như khóa hoặc mở khóa tài khoản khi cần thiết.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Quản lý người dùng”.
+Hệ thống hiển thị danh sách người dùng (bao gồm Buyer và Seller).
+Quản trị viên có thể tìm kiếm hoặc lọc người dùng theo các tiêu chí (email, trạng thái, vai trò).
+Quản trị viên chọn một người dùng cụ thể.
+Hệ thống hiển thị thông tin chi tiết tài khoản (thông tin cá nhân, trạng thái, lịch sử hoạt động cơ bản).
+Quản trị viên thực hiện chỉnh sửa thông tin (nếu cần).
+Quản trị viên có thể thực hiện hành động khóa hoặc mở khóa tài khoản.
+Hệ thống cập nhật trạng thái tài khoản và lưu vào cơ sở dữ liệu.
+Hiển thị thông báo kết quả thao tác.
+Luồng thay thế:
+Người dùng không tồn tại: Hiển thị lỗi.
+Lỗi cập nhật dữ liệu: Hiển thị thông báo hệ thống.
+Không đủ quyền thực hiện thao tác: Từ chối yêu cầu.
+Yêu cầu đặc biệt:
+Ghi log tất cả các hành động của quản trị viên.
+Đảm bảo phân quyền rõ ràng để tránh thao tác sai.
+Tiền điều kiện:
+Quản trị viên đã đăng nhập vào hệ thống với quyền hợp lệ.
+Hậu điều kiện:
+Thông tin hoặc trạng thái tài khoản người dùng được cập nhật chính xác.
+Điểm mở rộng:
+Phân quyền chi tiết theo cấp độ admin.
+Xem lịch sử hoạt động chi tiết của người dùng.
+
+2. Chức năng: Quản lý cửa hàng và sản phẩm
+Mô tả:
+Quản trị viên kiểm duyệt nội dung do người bán đăng tải, bao gồm thông tin cửa hàng và sản phẩm, nhằm đảm bảo tuân thủ quy định của hệ thống.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Quản lý cửa hàng và sản phẩm”.
+Hệ thống hiển thị danh sách cửa hàng và sản phẩm.
+Quản trị viên lựa chọn một cửa hàng hoặc sản phẩm cần kiểm duyệt.
+Hệ thống hiển thị thông tin chi tiết (mô tả, hình ảnh, nội dung).
+Quản trị viên kiểm tra nội dung theo quy định.
+Quản trị viên quyết định phê duyệt hoặc từ chối nội dung.
+Trong trường hợp vi phạm, quản trị viên có thể thực hiện hành động như xóa sản phẩm hoặc cảnh báo người bán.
+Hệ thống cập nhật trạng thái và lưu lại quyết định.
+Thông báo kết quả đến người bán.
+Luồng thay thế:
+Nội dung không rõ ràng: Yêu cầu kiểm tra lại hoặc giữ trạng thái chờ.
+Lỗi hệ thống khi cập nhật: Hiển thị thông báo lỗi.
+Yêu cầu đặc biệt:
+Đảm bảo quy trình kiểm duyệt nhất quán.
+Lưu lại lịch sử kiểm duyệt để phục vụ kiểm tra sau này.
+Tiền điều kiện:
+Đã tồn tại dữ liệu cửa hàng hoặc sản phẩm trong hệ thống.
+Hậu điều kiện:
+Nội dung được phê duyệt hoặc bị từ chối/xử lý.
+Điểm mở rộng:
+Tự động phát hiện nội dung vi phạm bằng AI.
+Ưu tiên kiểm duyệt các nội dung bị báo cáo.
+
+3. Chức năng: Giám sát hệ thống
+Mô tả:
+Quản trị viên theo dõi hoạt động tổng thể của hệ thống nhằm phát hiện các bất thường như hành vi gian lận, lỗi hệ thống hoặc hoạt động bất thường của người dùng.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Giám sát hệ thống”.
+Hệ thống hiển thị các thông tin tổng quan như số lượng người dùng đang hoạt động, số đơn hàng, trạng thái hệ thống.
+Hệ thống hiển thị các log hoạt động và sự kiện quan trọng.
+Quản trị viên theo dõi các chỉ số và phát hiện dấu hiệu bất thường.
+Quản trị viên kiểm tra chi tiết các sự kiện nghi ngờ.
+Quản trị viên có thể thực hiện các hành động như cảnh báo, khóa tài khoản hoặc báo cáo sự cố.
+Luồng thay thế:
+Không có dữ liệu bất thường: Hiển thị trạng thái bình thường.
+Lỗi truy xuất log: Hiển thị thông báo lỗi hệ thống.
+Yêu cầu đặc biệt:
+Hệ thống cần ghi log đầy đủ và chính xác.
+Đảm bảo hiệu suất khi xử lý dữ liệu lớn.
+Tiền điều kiện:
+Hệ thống đang hoạt động và có dữ liệu log.
+Hậu điều kiện:
+Các sự cố hoặc bất thường được phát hiện và xử lý kịp thời.
+Điểm mở rộng:
+Tích hợp hệ thống cảnh báo tự động.
+Sử dụng AI để phát hiện hành vi bất thường.
+ 
+Hậu điều kiện:
+Chatbot được cấu hình và sẵn sàng hoạt động.
+Điểm mở rộng:
+Huấn luyện chatbot bằng dữ liệu riêng của cửa hàng.
+Phân tích hiệu quả chatbot (tỷ lệ phản hồi, mức độ hài lòng).
+ 
+4. Chức năng: Quản lý giao dịch
+Mô tả:
+Quản trị viên theo dõi và quản lý các giao dịch phát sinh trong hệ thống, bao gồm các giao dịch thanh toán của đơn hàng nhằm đảm bảo tính minh bạch và phát hiện các giao dịch bất thường.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Quản lý giao dịch”.
+Hệ thống hiển thị danh sách các giao dịch đã thực hiện.
+Quản trị viên có thể lọc giao dịch theo các tiêu chí (thời gian, trạng thái, phương thức thanh toán).
+Quản trị viên chọn một giao dịch cụ thể.
+Hệ thống hiển thị chi tiết giao dịch (mã giao dịch, số tiền, trạng thái, thông tin liên quan).
+Quản trị viên theo dõi và kiểm tra tính hợp lệ của giao dịch.
+Luồng thay thế:
+Không có giao dịch: Hiển thị thông báo.
+Lỗi truy xuất dữ liệu: Hiển thị lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo dữ liệu giao dịch chính xác và không bị thay đổi trái phép.
+Ghi log đầy đủ các hoạt động liên quan đến giao dịch.
+Tiền điều kiện:
+Đã tồn tại dữ liệu giao dịch trong hệ thống.
+Hậu điều kiện:
+Thông tin giao dịch được hiển thị và có thể kiểm tra.
+Điểm mở rộng:
+Phát hiện giao dịch bất thường bằng AI.
+Tích hợp hệ thống cảnh báo gian lận.
+
+5. Chức năng: Báo cáo và thống kê
+Mô tả:
+Quản trị viên xem các báo cáo tổng hợp về hoạt động của hệ thống nhằm đánh giá hiệu suất và hỗ trợ ra quyết định.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Báo cáo và thống kê”.
+Hệ thống tổng hợp dữ liệu từ các nguồn (người dùng, đơn hàng, giao dịch).
+Hệ thống hiển thị dữ liệu dưới dạng bảng hoặc biểu đồ.
+Quản trị viên có thể chọn các tiêu chí lọc (theo thời gian, loại dữ liệu).
+Hệ thống cập nhật và hiển thị kết quả tương ứng.
+Luồng thay thế:
+Không có dữ liệu: Hiển thị thông báo.
+Lỗi xử lý dữ liệu: Hiển thị lỗi hệ thống.
+Yêu cầu đặc biệt:
+Đảm bảo độ chính xác và tính nhất quán của dữ liệu.
+Tối ưu hiệu suất khi xử lý dữ liệu lớn.
+Tiền điều kiện:
+Hệ thống có dữ liệu cần thiết để tổng hợp.
+Hậu điều kiện:
+Thông tin báo cáo được hiển thị cho quản trị viên.
+Điểm mở rộng:
+Xuất báo cáo ra file (PDF, Excel).
+Phân tích dữ liệu nâng cao bằng AI.
+
+6. Chức năng: Xử lý báo cáo
+Mô tả:
+Quản trị viên tiếp nhận và xử lý các báo cáo vi phạm do người dùng gửi lên, nhằm đảm bảo nội dung trên hệ thống tuân thủ quy định và duy trì môi trường an toàn.
+Luồng cơ bản:
+Quản trị viên truy cập chức năng “Xử lý báo cáo”.
+Hệ thống hiển thị danh sách các báo cáo từ người dùng.
+Quản trị viên chọn một báo cáo cụ thể.
+Hệ thống hiển thị chi tiết báo cáo (đối tượng bị báo cáo, nội dung, lý do).
+Quản trị viên kiểm tra thông tin liên quan (sản phẩm, người bán).
+Quản trị viên đánh giá mức độ vi phạm.
+Quản trị viên thực hiện hành động xử lý, bao gồm:
+Xóa sản phẩm vi phạm
+Khóa tài khoản người bán
+Gửi cảnh báo đến người bán
+Hệ thống ghi nhận hành động xử lý.
+Hệ thống cập nhật trạng thái báo cáo (đã xử lý).
+Luồng thay thế:
+Báo cáo không hợp lệ: Bỏ qua hoặc đánh dấu không hợp lệ.
+Không đủ bằng chứng vi phạm: Giữ trạng thái chờ xử lý.
+Lỗi hệ thống khi cập nhật: Hiển thị thông báo lỗi.
+Yêu cầu đặc biệt:
+Đảm bảo tính công bằng và minh bạch trong xử lý.
+Ghi log toàn bộ quá trình xử lý báo cáo.
+Tránh lạm dụng hệ thống báo cáo.
+Tiền điều kiện:
+Đã tồn tại báo cáo từ người dùng.
+Hậu điều kiện:
+Báo cáo được xử lý và trạng thái được cập nhật.
+Điểm mở rộng:
+Tự động ưu tiên xử lý các báo cáo nghiêm trọng.
+Tích hợp AI để hỗ trợ phân loại báo cáo.
+ 
+CHƯƠNG 5: THIẾT KẾ CƠ SỞ DỮ LIỆU
+
+5.1 Tổng quan
+Hệ thống sử dụng cơ sở dữ liệu quan hệ PostgreSQL làm nền tảng lưu trữ chính nhằm đảm bảo tính nhất quán, toàn vẹn và khả năng mở rộng.
+Dữ liệu trong hệ thống bao gồm các thành phần chính:
+Người dùng và phân quyền
+Cửa hàng và sản phẩm
+Đơn hàng và thanh toán
+Tương tác (chat, đánh giá)
+Quản trị và báo cáo
+Ngoài ra, hệ thống hỗ trợ các chức năng thông minh thông qua cơ chế embedding để phục vụ tìm kiếm ngữ nghĩa và chatbot.
+
+5.2 Các thực thể chính
+Hệ thống bao gồm các thực thể:
+Users
+Shops
+Categories
+Products
+Product_Images
+Orders
+Order_Items
+Payments
+Reviews
+Conversations
+Messages
+Chatbot_Configs
+Reports
+Notifications
+Audit_Logs
+
+5.3 Thiết kế bảng dữ liệu
+
+5.3.1 Bảng Users
+Lưu thông tin người dùng trong hệ thống.
+id (PK)
+email
+password
+role (buyer, seller, admin)
+status (active, banned)
+last_seen (timestamp)
+created_at
+
+5.3.2 Bảng Shops
+Lưu thông tin cửa hàng của người bán.
+id (PK)
+owner_id (FK → Users.id)
+name
+description
+status (active, suspended)
+created_at
+Ghi chú:
+Khi tài khoản người bán bị khóa (banned), cửa hàng sẽ được chuyển sang trạng thái suspended.
+
+5.3.3 Bảng Categories
+Lưu danh mục sản phẩm.
+id (PK)
+name
+parent_id (FK → Categories.id)
+
+5.3.4 Bảng Products
+Lưu thông tin sản phẩm.
+id (PK)
+shop_id (FK → Shops.id)
+category_id (FK → Categories.id)
+name
+description
+price
+stock
+attributes (JSONB)
+created_at
+Ghi chú:
+Trường attributes cho phép lưu các thuộc tính linh hoạt của sản phẩm.
+
+5.3.5 Bảng Product_Images
+Lưu danh sách hình ảnh của sản phẩm.
+id (PK)
+product_id (FK → Products.id)
+url
+is_primary
+
+5.3.6 Bảng Orders
+Lưu thông tin đơn hàng.
+id (PK)
+user_id (FK → Users.id)
+total_price
+status (pending, processing, shipping, delivered, cancelled)
+payment_status
+shipping_address
+shipping_status (preparing, shipping, delivered)
+shipping_note
+created_at
+Ghi chú:
+status phản ánh vòng đời xử lý nghiệp vụ đơn hàng.
+shipping_status phản ánh tiến trình vận chuyển.
+Hệ thống sử dụng mô hình vận chuyển đơn giản để mô phỏng trạng thái giao hàng.
+
+5.3.7 Bảng Order_Items
+Chi tiết các sản phẩm trong đơn hàng.
+id (PK)
+order_id (FK → Orders.id)
+product_id (FK → Products.id)
+quantity
+price
+
+5.3.8 Bảng Payments
+Lưu thông tin thanh toán.
+id (PK)
+order_id (FK → Orders.id)
+method (COD, ONLINE)
+status (pending, success, failed)
+transaction_id
+created_at
+Ghi chú:
+Thanh toán online được mô phỏng, không tích hợp cổng thanh toán thực tế.
+Trạng thái thanh toán được cập nhật dựa trên hành động của người dùng trong hệ thống.
+
+5.3.9 Bảng Reviews
+Lưu đánh giá sản phẩm.
+id (PK)
+user_id (FK → Users.id)
+product_id (FK → Products.id)
+rating
+comment
+created_at
+
+5.3.10 Bảng Conversations
+Lưu thông tin hội thoại.
+id (PK)
+buyer_id (FK → Users.id)
+seller_id (FK → Users.id)
+is_bot_enabled (boolean)
+created_at
+Ghi chú:
+is_bot_enabled cho phép bật/tắt chatbot trong hội thoại.
+
+5.3.11 Bảng Messages
+Lưu nội dung tin nhắn.
+id (PK)
+conversation_id (FK → Conversations.id)
+sender_id (FK → Users.id)
+content
+is_bot (boolean)
+is_read (boolean)
+created_at
+
+5.3.12 Bảng Chatbot_Configs
+Cấu hình chatbot cho từng cửa hàng.
+id (PK)
+shop_id (FK → Shops.id)
+api_key (encrypted)
+prompt
+template
+created_at
+
+5.3.13 Bảng Reports
+Lưu báo cáo vi phạm.
+id (PK)
+reporter_id (FK → Users.id)
+target_type
+target_id
+reason
+status
+created_at
+
+5.3.14 Bảng Notifications
+Lưu thông báo hệ thống.
+id (PK)
+user_id (FK → Users.id)
+content
+type
+channel (email, system)
+is_read
+created_at
+Ghi chú:
+Hệ thống hiện sử dụng email làm kênh chính.
+Thiết kế cho phép mở rộng sang các kênh khác trong tương lai.
+
+5.3.15 Bảng Audit_Logs
+Lưu lịch sử hành động của quản trị viên.
+id (PK)
+admin_id (FK → Users.id)
+action
+target_type
+target_id
+description
+created_at
+
+5.4 Thiết kế dữ liệu cho AI (Embedding)
+Để hỗ trợ các chức năng thông minh như tìm kiếm theo ý định và chatbot, hệ thống sử dụng vector embedding cho dữ liệu sản phẩm.
+Mỗi sản phẩm được chuyển đổi thành một vector embedding dựa trên:
+tên sản phẩm
+mô tả
+thuộc tính
+Embedding được sử dụng để:
+tìm kiếm sản phẩm theo ngữ nghĩa
+cung cấp ngữ cảnh cho chatbot
+gợi ý sản phẩm
+Trong hệ thống, embedding không được lưu trực tiếp trong cơ sở dữ liệu quan hệ mà được quản lý bởi một thành phần truy xuất vector riêng, ví dụ như FAISS.
+Cấu trúc logic của embedding có thể được mô tả như sau:
+product_id
+vector
+
+5.5 Tổng kết
+Thiết kế cơ sở dữ liệu đảm bảo:
+Hỗ trợ đầy đủ các chức năng thương mại điện tử
+Dễ dàng mở rộng và bảo trì
+Tích hợp được các thành phần AI
+Giữ được sự đơn giản cần thiết cho phạm vi bài tập lớn
+Hệ thống sử dụng kết hợp giữa dữ liệu quan hệ và các thành phần hỗ trợ như embedding để đạt hiệu quả cao trong cả lưu trữ và xử lý.
+
+
+CHƯƠNG 6: THIẾT KẾ API
+
+6.1 Tổng quan
+Hệ thống cung cấp API theo kiến trúc RESTful, sử dụng giao thức HTTP và định dạng JSON. Backend được xây dựng bằng FastAPI kết hợp với cơ sở dữ liệu PostgreSQL.
+
+Nguyên tắc thiết kế API:
+- Tách theo vai trò Buyer, Seller, Admin.
+- Endpoint theo tài nguyên (resource-based).
+- Hỗ trợ phân trang, lọc, sắp xếp nhất quán.
+- Chuẩn hóa mã lỗi và response lỗi.
+- Các chức năng AI được tích hợp trong luồng nghiệp vụ qua endpoint nghiệp vụ (ví dụ intent search, chatbot), không tách thành dịch vụ AI public độc lập.
+
+6.2 Quy ước chung
+Base URL: /api/v1
+Format dữ liệu: JSON
+Authentication: Bearer JWT (Access Token)
+- Có thể áp dụng rate limiting cho các endpoint nhạy cảm (login, chat, AI).
+- Rate limit gợi ý: login tối đa 10 lần/phút/IP, gửi OTP tối đa 5 lần/phút/tài khoản, intent-search tối đa 30 lần/phút/tài khoản.
+- Các tài nguyên quan trọng ưu tiên dùng trạng thái (status) thay vì xóa cứng.
+- Soft delete áp dụng cho các tài nguyên quan trọng như Products, Orders, Users để đảm bảo toàn vẹn dữ liệu cho báo cáo và kiểm toán.
+- Các trường như email, password được validate theo quy tắc bảo mật.
+- Quy tắc mật khẩu gợi ý: tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.
+
+6.2.1 Response thành công
+{
+  "success": true,
+  "data": {},
+  "message": "OK"
+}
+
+6.2.2 Response lỗi
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Dữ liệu không hợp lệ",
+    "details": []
+  }
+}
+
+6.2.3 HTTP status code sử dụng
+- 200 OK: Thành công.
+- 201 Created: Tạo mới thành công.
+- 204 No Content: Xóa/cập nhật không trả body.
+- 400 Bad Request: Request sai định dạng hoặc logic.
+- 401 Unauthorized: Chưa xác thực.
+- 403 Forbidden: Không đủ quyền.
+- 404 Not Found: Không tìm thấy tài nguyên.
+- 409 Conflict: Xung đột dữ liệu (email trùng, trạng thái không hợp lệ).
+- 422 Unprocessable Entity: Lỗi validate dữ liệu.
+- 500 Internal Server Error: Lỗi hệ thống.
+
+6.2.4 Phân trang chuẩn
+Các API danh sách dùng query:
+- page (mặc định 1)
+- page_size (mặc định 20, tối đa 100)
+
+Response danh sách:
+{
+  "success": true,
+  "data": {
+    "items": [],
+    "meta": {
+      "page": 1,
+      "page_size": 20,
+      "total": 120,
+      "total_pages": 6
+    }
+  },
+  "message": "OK"
+}
+
+6.3 Nhóm API xác thực (Auth)
+
+6.3.1 Đăng ký tài khoản
+- POST /auth/register
+Mô tả: Tạo tài khoản buyer mới.
+Request:
+{
+  "email": "user@example.com",
+  "password": "StrongPass@123",
+  "full_name": "Nguyen Van A"
+}
+Status: 201, 409, 422
+
+6.3.2 Gửi OTP xác thực
+- POST /auth/verify-otp
+Mô tả: Xác thực email/số điện thoại bằng OTP sau đăng ký.
+Request:
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+Status: 200, 400, 404, 422
+
+6.3.3 Đăng nhập
+- POST /auth/login
+Mô tả: Xác thực và cấp access_token + refresh_token.
+Request:
+{
+  "email": "user@example.com",
+  "password": "StrongPass@123"
+}
+Status: 200, 401, 422
+
+6.3.4 Làm mới token
+- POST /auth/refresh
+Mô tả: Cấp access token mới bằng refresh token.
+Request:
+{
+  "refresh_token": "..."
+}
+Ghi chú:
+Trong môi trường production, refresh token nên được gửi qua HttpOnly Cookie để giảm rủi ro XSS.
+Có thể áp dụng cơ chế refresh token rotation để tăng bảo mật.
+Status: 200, 401
+
+6.3.5 Đăng xuất
+- POST /auth/logout
+Mô tả: Thu hồi refresh token hiện tại.
+Ghi chú:
+Refresh token được lưu và thu hồi khi logout để tránh reuse.
+Status: 200, 401
+
+6.3.6 Quên mật khẩu
+- POST /auth/forgot-password
+Mô tả: Gửi OTP/link đặt lại mật khẩu.
+Request:
+{
+  "email": "user@example.com"
+}
+Status: 200, 404
+
+6.3.7 Đặt lại mật khẩu
+- POST /auth/reset-password
+Mô tả: Đặt lại mật khẩu bằng OTP hoặc reset token.
+Request:
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "new_password": "NewPass@123"
+}
+Status: 200, 400, 404, 422
+
+6.4 Nhóm API người dùng (Buyer)
+
+6.4.1 Hồ sơ người dùng
+- GET /users/me
+- PUT /users/me
+Mô tả: Xem/cập nhật thông tin cá nhân.
+Status: 200, 401, 422
+
+6.4.2 Danh mục
+- GET /categories
+Mô tả: Lấy danh sách danh mục sản phẩm.
+Status: 200
+
+6.4.3 Sản phẩm
+- GET /products
+Query: keyword, q, search_type, category_id, shop_id, min_price, max_price, sort, page, page_size
+sort: price_asc | price_desc | newest | best_selling
+search_type: keyword | ai
+Mô tả: Tìm kiếm, lọc, sắp xếp sản phẩm.
+Ghi chú:
+Có thể dùng endpoint này cho cả tìm kiếm thường và tìm kiếm AI (q + search_type=ai) để frontend thống nhất luồng hiển thị danh sách.
+Status: 200
+
+- GET /products/{id}
+Mô tả: Lấy chi tiết sản phẩm.
+Status: 200, 404
+
+- POST /products/intent-search
+Mô tả: Tìm kiếm theo ý định người dùng (tích hợp AI trong luồng nghiệp vụ).
+Ghi chú:
+Nếu hệ thống không phân tích được intent, hệ thống fallback sang keyword search.
+AI sử dụng embedding để truy xuất ngữ cảnh (RAG).
+Request:
+{
+  "query": "laptop chơi game dưới 20 triệu",
+  "page": 1,
+  "page_size": 20
+}
+Status: 200, 422
+
+- GET /products/{id}/reviews
+Mô tả: Lấy danh sách đánh giá của sản phẩm.
+Status: 200, 404
+
+6.4.4 Đánh giá sản phẩm
+- POST /reviews
+Mô tả: Gửi đánh giá sản phẩm đã mua.
+Request:
+{
+  "product_id": 1001,
+  "rating": 5,
+  "comment": "Sản phẩm tốt"
+}
+Ghi chú:
+Chỉ cho phép đánh giá nếu người dùng đã mua sản phẩm và đơn hàng liên quan ở trạng thái delivered.
+Status: 201, 403, 404, 422
+
+6.4.5 Cửa hàng
+- GET /shops/{id}
+Mô tả: Xem thông tin cửa hàng.
+Status: 200, 404
+
+6.4.6 Giỏ hàng
+- GET /cart
+Mô tả: Lấy giỏ hàng hiện tại.
+Ghi chú:
+Response nên trả cả thông tin cơ bản của sản phẩm trong từng item (tên, giá, ảnh chính, tồn kho khả dụng) để giảm số lượng request từ frontend.
+Status: 200, 401
+
+- POST /cart/items
+Mô tả: Thêm sản phẩm vào giỏ.
+Request:
+{
+  "product_id": 1001,
+  "quantity": 2
+}
+Status: 201, 400, 404, 422
+
+- PUT /cart/items/{item_id}
+Mô tả: Cập nhật số lượng sản phẩm trong giỏ.
+Request:
+{
+  "quantity": 3
+}
+Status: 200, 404, 422
+
+- DELETE /cart/items/{item_id}
+Mô tả: Xóa sản phẩm khỏi giỏ.
+Status: 204, 404
+
+6.4.7 Đơn hàng
+- POST /orders
+Mô tả: Tạo đơn hàng từ giỏ hàng.
+Status: 201, 400, 401, 422
+
+- GET /orders/my
+Query: status, from_date, to_date, page, page_size
+Mô tả: Lấy danh sách đơn hàng của tôi.
+Ghi chú:
+Cho phép lọc theo trạng thái đơn hàng (pending, processing, shipping, delivered, cancelled) để thuận tiện tra cứu lịch sử mua hàng.
+Status: 200, 401
+
+- GET /orders/{id}
+Mô tả: Lấy chi tiết đơn hàng.
+Status: 200, 401, 403, 404
+
+- POST /orders/{id}/cancel
+Mô tả: Hủy đơn hàng khi còn ở trạng thái cho phép.
+Status: 200, 400, 401, 403, 404
+
+6.4.8 Thanh toán (FAKE)
+- POST /payments/{order_id}/pay
+Mô tả: Mô phỏng thanh toán cho đơn hàng.
+Luồng: Tạo payment pending -> random success/failed -> cập nhật Payments.status và Orders.payment_status.
+Ghi chú:
+Trạng thái thanh toán được mô phỏng và có thể dựa trên random hoặc input test để phục vụ kiểm thử.
+API thanh toán có thể hỗ trợ idempotency key để tránh thanh toán lặp lại.
+Idempotency key thường được truyền qua header X-Idempotency-Key.
+Status: 200, 400, 404
+
+- GET /payments/{order_id}
+Mô tả: Xem trạng thái thanh toán của đơn hàng.
+Status: 200, 404
+
+6.4.9 Chat
+- POST /chat/conversations
+Mô tả: Tạo hội thoại buyer-seller.
+Status: 201, 400, 404
+
+- GET /chat/conversations
+Mô tả: Lấy danh sách hội thoại của người dùng.
+Status: 200, 401
+
+- GET /chat/conversations/{conversation_id}/messages
+Mô tả: Lấy danh sách tin nhắn theo hội thoại.
+Status: 200, 401, 403, 404
+
+- POST /chat/conversations/{conversation_id}/messages
+Mô tả: Gửi tin nhắn trong hội thoại.
+Ghi chú: nếu hội thoại bật bot và cấu hình hợp lệ, hệ thống có thể sinh phản hồi tự động.
+Hệ thống có thể mở rộng WebSocket để hỗ trợ realtime chat (bao gồm trạng thái typing).
+Status: 201, 401, 403, 404, 422
+
+- PATCH /chat/conversations/{conversation_id}/read
+Mô tả: Đánh dấu đã đọc tin nhắn trong hội thoại.
+Status: 200, 401, 403, 404
+
+6.4.10 Báo cáo vi phạm
+- POST /reports
+Mô tả: Gửi báo cáo sản phẩm/người bán.
+Request:
+{
+  "target_type": "product",
+  "target_id": 1001,
+  "reason": "Nội dung sai sự thật"
+}
+Status: 201, 401, 404, 422
+
+6.4.11 Thông báo
+- GET /notifications
+Mô tả: Lấy danh sách thông báo cá nhân.
+Ghi chú:
+Thông báo được tạo khi cập nhật trạng thái đơn hàng, thanh toán, và các sự kiện chat quan trọng.
+Status: 200, 401
+
+- PATCH /notifications/{id}/read
+Mô tả: Đánh dấu một thông báo đã đọc.
+Status: 200, 401, 404
+
+- PATCH /notifications/read-all
+Mô tả: Đánh dấu tất cả thông báo đã đọc.
+Status: 200, 401
+
+6.4.12 Đăng ký mở cửa hàng
+- POST /seller-requests
+Mô tả: Buyer gửi yêu cầu đăng ký trở thành seller.
+Request:
+{
+  "shop_name": "Shop ABC",
+  "description": "Cửa hàng đồ công nghệ",
+  "contact": "0123456789"
+}
+Status: 201, 401, 409, 422
+
+- GET /seller-requests/me
+Mô tả: Xem trạng thái yêu cầu mở cửa hàng của tài khoản hiện tại.
+Status: 200, 401
+
+6.5 Nhóm API người bán (Seller)
+
+6.5.1 Cửa hàng
+- GET /seller/shop
+- PUT /seller/shop
+Mô tả: Xem/cập nhật thông tin cửa hàng.
+Status: 200, 401, 403, 422
+
+6.5.2 Sản phẩm
+- GET /seller/products
+- POST /seller/products
+- PUT /seller/products/{id}
+- DELETE /seller/products/{id}
+Mô tả: Quản lý sản phẩm của cửa hàng.
+Status: 200, 201, 204, 401, 403, 404, 422
+
+6.5.3 Hình ảnh sản phẩm
+- POST /seller/products/{id}/images
+- DELETE /seller/products/images/{id}
+Mô tả: Thêm/xóa hình ảnh sản phẩm.
+Status: 201, 204, 401, 403, 404, 422
+
+6.5.4 Đơn hàng
+- GET /seller/orders
+Mô tả: Lấy danh sách đơn hàng của shop.
+Status: 200, 401, 403
+
+- GET /seller/orders/{id}
+Mô tả: Lấy chi tiết đơn hàng của shop.
+Status: 200, 401, 403, 404
+
+- PATCH /seller/orders/{id}
+Mô tả: Cập nhật trạng thái xử lý đơn hàng.
+Request:
+{
+  "status": "processing"
+}
+Ghi chú:
+API cần validate state machine của đơn hàng, ví dụ không cho phép chuyển từ cancelled sang processing.
+Luồng chuyển trạng thái gợi ý: pending -> processing -> shipping -> delivered; pending/processing -> cancelled (theo điều kiện nghiệp vụ).
+Với trạng thái shipping -> cancelled, mặc định không cho phép; nếu hỗ trợ cần qua luồng hoàn/hủy giao hàng riêng.
+Status: 200, 400, 401, 403, 404
+
+- PATCH /seller/orders/{id}/shipping
+Mô tả: Cập nhật trạng thái vận chuyển thủ công (FAKE).
+Request:
+{
+  "shipping_status": "shipping",
+  "shipping_note": "Đang giao tại Hà Nội"
+}
+Status: 200, 400, 401, 403, 404
+
+6.5.5 Chatbot (Custom AI)
+- GET /seller/chatbot-config
+- PATCH /seller/chatbot-config
+Mô tả: Cấu hình chatbot của shop (api_key, prompt, template, is_enabled).
+Ghi chú:
+Nếu is_enabled = false, hệ thống không gọi AI.
+Khi trả dữ liệu từ GET /seller/chatbot-config, api_key cần được masking (ví dụ: sk-...abcd).
+Status: 200, 401, 403, 422
+
+6.5.6 Thống kê cửa hàng
+- GET /seller/stats
+Query: from_date, to_date
+Mô tả: Lấy thống kê doanh thu, đơn hàng, sản phẩm bán chạy.
+Status: 200, 401, 403
+
+6.6 Nhóm API quản trị (Admin)
+
+6.6.1 Quản lý người dùng
+- GET /admin/users
+Query: role, status, keyword, page, page_size
+Mô tả: Lấy danh sách và lọc người dùng.
+Status: 200, 401, 403
+
+- PATCH /admin/users/{id}
+Mô tả: Cập nhật trạng thái/quyền người dùng (active, banned, role).
+Request:
+{
+  "status": "banned"
+}
+Status: 200, 400, 401, 403, 404
+
+6.6.2 Quản lý yêu cầu mở cửa hàng
+- GET /admin/seller-requests
+Mô tả: Lấy danh sách yêu cầu mở cửa hàng.
+Status: 200, 401, 403
+
+- PATCH /admin/seller-requests/{id}
+Mô tả: Phê duyệt hoặc từ chối yêu cầu.
+Request:
+{
+  "action": "approve",
+  "reason": "Đủ điều kiện"
+}
+Status: 200, 400, 401, 403, 404
+
+6.6.3 Quản lý báo cáo vi phạm
+- GET /admin/reports
+- PATCH /admin/reports/{id}
+Mô tả: Xem và xử lý báo cáo vi phạm.
+Status: 200, 401, 403, 404
+
+6.6.4 Nhật ký hệ thống
+- GET /admin/audit-logs
+Mô tả: Truy xuất lịch sử hành động quản trị.
+Status: 200, 401, 403
+
+6.6.5 Thống kê hệ thống (FAKE)
+- GET /admin/metrics
+Mô tả: Trả số liệu mô phỏng cho dashboard quản trị.
+Ghi chú:
+Dữ liệu có thể lấy từ DB hoặc mock để phục vụ dashboard trong phạm vi prototype.
+Metrics có thể được tổng hợp từ các bảng Orders, Users, Payments.
+Status: 200, 401, 403
+
+6.6.6 Logs hệ thống (FAKE)
+- GET /admin/logs
+Mô tả: Trả dữ liệu logs mô phỏng hoặc từ audit logs.
+Status: 200, 401, 403
+
+6.7 Ma trận phân quyền API theo vai trò
+- Buyer: /users/me, /cart, /orders/my, /payments/*, /reports, /notifications, /chat/*, /seller-requests.
+- Seller: toàn bộ API Buyer + /seller/* (trong phạm vi shop của mình).
+- Admin: /admin/* và quyền giám sát toàn hệ thống.
+
+6.8 Tổng kết
+Thiết kế API đảm bảo:
+- Bao phủ đầy đủ các use case đã phân tích.
+- Endpoint nhất quán theo chuẩn RESTful.
+- Có chuẩn response lỗi, status code, phân trang rõ ràng.
+- Giữ mô hình FAKE cho thanh toán, vận chuyển, metrics để phù hợp phạm vi bài tập lớn.
+- Sẵn sàng mở rộng sang tích hợp thực tế (cổng thanh toán, đơn vị vận chuyển, hệ thống AI production).
+
+
