@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repository has two active apps:
 - `backend/`: FastAPI + SQLAlchemy + Alembic monolith for auth, buyer, seller, and admin flows.
-- `frontend/`: Vite + React + TypeScript client that currently covers the public shell plus login/register flows.
+- `frontend/`: Next.js + React + TypeScript client (App Router, Tailwind CSS v4, Shadcn UI) that covers the public shell plus user flows.
 
 ## Development commands
 
@@ -38,8 +38,8 @@ Run these from `frontend/`.
 - Backend defaults to PostgreSQL at `localhost:5432/ecommerce` via `DATABASE_URL` in `app/core/config.py`.
 - `backend/docker-compose.yml` starts PostgreSQL, Redis, and MailHog.
 - MailHog is exposed at `http://localhost:8025`; the register flow expects OTP emails to appear there.
-- Frontend calls the backend at `http://localhost:8000/api/v1` via a hardcoded Axios base URL in `frontend/src/api/client.ts`.
-- Backend CORS currently allows the Vite dev server on `http://localhost:5173` and `http://127.0.0.1:5173`.
+- Frontend calls the backend at `http://localhost:8000/api/v1`.
+- Backend CORS currently allows the Next.js dev server on `http://localhost:3000` and `http://127.0.0.1:3000`.
 
 ## Backend architecture
 
@@ -105,15 +105,15 @@ Prefer keeping tests at the HTTP/API level unless there is a strong reason to un
 
 ## Frontend architecture
 
-The frontend is currently a small client with centralized auth and API plumbing:
+The frontend is a Next.js application using the App Router (`app/` directory), Tailwind CSS v4, and Shadcn UI components.
 
-- `src/App.tsx` defines the router and wraps the app in `AuthProvider`.
-- `src/context/AuthContext.tsx` owns login/logout state, stores tokens in `localStorage`, and hydrates the current user by calling `/users/me`.
-- `src/api/client.ts` is the single Axios instance; it injects the bearer token and unwraps the backend response envelope.
-- Current pages are `Home`, `Login`, and `Register`; the register flow has a two-step form + OTP confirmation UI.
-- The navbar already assumes future routes like cart and profile exist, even if they are not fully implemented yet.
+- `src/app/` contains all the page routes (e.g., `page.tsx`, `products/page.tsx`).
+- `src/components/` contains reusable UI components and Shadcn UI components (`src/components/ui/`).
+- Routing is handled via Next.js App Router and `<Link>` components with smooth transitions.
+- The design system uses a monochromatic cool-white palette with an Apple Store / Dyson style premium aesthetic.
+- Glassmorphism is heavily used (e.g., `backdrop-blur-xl bg-white/70`).
 
-Important consequence: frontend API work should usually go through `src/api/client.ts` and `AuthContext`, not ad hoc `fetch` calls.
+Important consequence: frontend API work should be structured carefully considering Next.js Server vs Client components. Use `next/image` for optimized image delivery.
 
 ## Cross-cutting behaviors to remember
 
