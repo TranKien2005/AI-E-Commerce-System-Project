@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -6,6 +7,15 @@ from sqlalchemy.orm import Session
 from app.core.responses import fail, ok
 from app.models.entities import ChatbotConfig, Notification, Order, OrderItem, Product, ProductImage, Shop, User
 from app.services.email_service import send_email
+
+logger = logging.getLogger(__name__)
+
+
+def _send_email_after_commit(to_email: str, subject: str, html: str):
+    try:
+        send_email(to_email, subject, html)
+    except Exception:
+        logger.exception("Failed to send email", extra={"to_email": to_email, "subject": subject})
 
 
 def _get_owner_shop(db: Session, user: User):
@@ -174,10 +184,9 @@ def update_order_status(db: Session, user: User, order_id: int, status: str):
     order.status = status
     db.add(Notification(user_id=order.user_id, content=f"Đơn hàng #{order.id} đã chuyển sang trạng thái: {status}", type="order", channel="email"))
     db.commit()
-    # Send email to buyer
     buyer = db.get(User, order.user_id)
     if buyer:
-        send_email(buyer.email, f"Đơn hàng #{order.id} - Cập nhật trạng thái", f"Đơn hàng <b>#{order.id}</b> đã chuyển sang: <b>{status}</b>")
+        _send_email_after_commit(buyer.email, f"Đơn hàng #{order.id} - Cập nhật trạng thái", f"Đơn hàng <b>#{order.id}</b> đã chuyển sang: <b>{status}</b>")
     return ok({})
 
 

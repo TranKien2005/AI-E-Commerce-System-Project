@@ -26,6 +26,24 @@ class TestLogin:
         d = r.json()["data"]
         assert "access_token" in d and "refresh_token" in d
 
+    def test_login_requires_verified_email(self, client):
+        from app.services.auth_service import _otp_store
+
+        email, password = "pending-login@example.com", "Pending@123"
+        register = client.post("/api/v1/auth/register", json={"email": email, "password": password, "full_name": "Pending Login"})
+        assert register.status_code in (200, 201)
+
+        blocked = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+        assert blocked.status_code == 403
+
+        otp_code = _otp_store.get(email, {}).get("code", "")
+        assert otp_code
+        verified = client.post("/api/v1/auth/verify-otp", json={"email": email, "otp": otp_code})
+        assert verified.status_code == 200
+
+        allowed = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+        assert allowed.status_code == 200
+
     def test_login_wrong_password(self, client):
         r = client.post("/api/v1/auth/login", json={"email": B_EMAIL, "password": "Wrong@999"})
         assert r.status_code == 401

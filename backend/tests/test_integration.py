@@ -14,12 +14,20 @@ class TestBuyerJourney:
     """Register → Login → Browse → Cart → Order → Pay → Notification"""
 
     def test_full_buyer_journey(self, client):
+        from app.services.auth_service import _otp_store
+
         email, pwd = "journey_test@example.com", "Test@12345"
         reg = client.post("/api/v1/auth/register", json={"email": email, "password": pwd, "full_name": "Journey Tester"})
         if reg.status_code == 409:
-            pass  # already exists
+            pass
         else:
             assert reg.status_code in (200, 201)
+            blocked = client.post("/api/v1/auth/login", json={"email": email, "password": pwd})
+            assert blocked.status_code == 403
+            otp_code = _otp_store.get(email, {}).get("code", "")
+            assert otp_code
+            verify = client.post("/api/v1/auth/verify-otp", json={"email": email, "otp": otp_code})
+            assert verify.status_code == 200
 
         login = client.post("/api/v1/auth/login", json={"email": email, "password": pwd})
         assert login.status_code == 200

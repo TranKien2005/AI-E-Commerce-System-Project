@@ -70,10 +70,10 @@ def audit_logs(db: Session = Depends(get_db), current_user: User = Depends(requi
 
 
 @router.get("/metrics")
-def metrics(current_user: User = Depends(require_roles("admin"))):
-    return admin_service.metrics()
+def metrics(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+    return admin_service.metrics(db)
 
 
 @router.get("/logs")
-def logs(current_user: User = Depends(require_roles("admin"))):
-    return admin_service.logs()
+def logs(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+    return admin_service.logs(db)

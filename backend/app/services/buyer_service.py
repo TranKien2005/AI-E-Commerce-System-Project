@@ -1,3 +1,4 @@
+import logging
 import random
 from datetime import datetime
 from uuid import uuid4
@@ -8,6 +9,15 @@ from sqlalchemy.orm import Session
 from app.core.responses import fail, ok
 from app.models.entities import CartItem, Category, Conversation, Message, Notification, Order, OrderItem, Payment, Product, ProductImage, Report, Review, SellerRequest, Shop, User
 from app.services.email_service import send_email
+
+logger = logging.getLogger(__name__)
+
+
+def _send_email_after_commit(to_email: str, subject: str, html: str):
+    try:
+        send_email(to_email, subject, html)
+    except Exception:
+        logger.exception("Failed to send email", extra={"to_email": to_email, "subject": subject})
 
 
 def get_me(user: User):
@@ -68,7 +78,7 @@ def create_order(db: Session, user: User, shipping_address: str):
     order.total_price = total
     db.add(Notification(user_id=user.id, content=f"Đơn hàng #{order.id} đã được tạo thành công", type="order", channel="email"))
     db.commit()
-    send_email(user.email, f"Đơn hàng #{order.id} đã được tạo", f"Đơn hàng <b>#{order.id}</b> đã được tạo thành công. Tổng: {total:,.0f}đ")
+    _send_email_after_commit(user.email, f"Đơn hàng #{order.id} đã được tạo", f"Đơn hàng <b>#{order.id}</b> đã được tạo thành công. Tổng: {total:,.0f}đ")
     return ok({"order_id": order.id})
 
 
@@ -101,9 +111,9 @@ def pay_order(db: Session, user: User, order_id: int, x_idempotency_key: str | N
         db.add(Notification(user_id=user.id, content=f"Thanh toán đơn #{order_id} thất bại, vui lòng thử lại", type="payment", channel="email"))
     db.commit()
     if result_status == "success":
-        send_email(user.email, f"Thanh toán đơn #{order_id} thành công", f"Đơn hàng <b>#{order_id}</b> đã được thanh toán thành công.")
+        _send_email_after_commit(user.email, f"Thanh toán đơn #{order_id} thành công", f"Đơn hàng <b>#{order_id}</b> đã được thanh toán thành công.")
     else:
-        send_email(user.email, f"Thanh toán đơn #{order_id} thất bại", f"Thanh toán đơn hàng <b>#{order_id}</b> thất bại. Vui lòng thử lại.")
+        _send_email_after_commit(user.email, f"Thanh toán đơn #{order_id} thất bại", f"Thanh toán đơn hàng <b>#{order_id}</b> thất bại. Vui lòng thử lại.")
     return ok({"payment_id": payment.id, "status": payment.status})
 
 
@@ -237,7 +247,7 @@ def cancel_order(db: Session, user: User, order_id: int):
             p.stock += oi.quantity
     db.add(Notification(user_id=user.id, content=f"Đơn hàng #{order_id} đã được hủy", type="order", channel="email"))
     db.commit()
-    send_email(user.email, f"Đơn hàng #{order_id} đã hủy", f"Đơn hàng <b>#{order_id}</b> đã được hủy thành công.")
+    _send_email_after_commit(user.email, f"Đơn hàng #{order_id} đã hủy", f"Đơn hàng <b>#{order_id}</b> đã được hủy thành công.")
     return ok({})
 
 

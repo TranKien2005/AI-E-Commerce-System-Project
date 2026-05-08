@@ -18,12 +18,20 @@ class Settings(BaseSettings):
     AI_SEARCH_API_KEY: str = ""
     AI_SEARCH_TIMEOUT_SECONDS: int = 5
 
-    # SMTP / Email (MailHog by default)
+    # Email Settings
+    # EMAIL_BACKEND: "smtp" (MailHog/Local) or "resend" (Production API)
+    EMAIL_BACKEND: str = "smtp"
+    
+    # SMTP / MailHog
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "noreply@ecommerce.local"
+
+    # Resend API
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "onboarding@resend.dev" # Mặc định của Resend khi chưa verify domain
 
 
 settings = Settings()

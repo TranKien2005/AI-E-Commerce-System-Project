@@ -1,5 +1,7 @@
+import logging
 import random
 import time
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,6 +10,8 @@ from app.core.responses import fail, ok
 from app.core.security import create_token, decode_token, get_password_hash, verify_password
 from app.models.entities import User
 from app.services.email_service import send_otp_email
+
+logger = logging.getLogger(__name__)
 
 revoked_refresh_tokens: set[str] = set()
 
@@ -55,15 +59,23 @@ def register(db: Session, email: str, password: str, full_name: str):
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
         fail(409, "CONFLICT", "Email đã tồn tại")
-    user = User(email=email, password=get_password_hash(password), full_name=full_name.strip())
+    user = User(
+        email=email,
+        password=get_password_hash(password),
+        full_name=full_name.strip(),
+        status="pending_verification",
+        email_verified_at=None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    # Generate and send OTP for email verification
     otp = _generate_otp()
     _store_otp(email, otp)
-    send_otp_email(email, otp)
+    try:
+        send_otp_email(email, otp)
+    except Exception:
+        logger.exception("Failed to send verification OTP", extra={"email": email})
 
     return ok({"id": user.id, "email": user.email})
 
@@ -77,7 +89,10 @@ def verify_otp(db: Session, email: str, otp: str):
         fail(400, "BAD_REQUEST", "OTP không hợp lệ")
     if not _verify_otp(email, otp):
         fail(400, "BAD_REQUEST", "Mã OTP sai hoặc đã hết hạn")
-    # Mark user as verified (status stays active since we default to active)
+    user.email_verified_at = datetime.now(timezone.utc)
+    if user.status == "pending_verification":
+        user.status = "active"
+    db.commit()
     return ok({"verified": True})
 
 
@@ -85,6 +100,8 @@ def login(db: Session, email: str, password: str):
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
     if not user or not verify_password(password, user.password):
         fail(401, "UNAUTHORIZED", "Sai thông tin đăng nhập")
+    if user.email_verified_at is None:
+        fail(403, "FORBIDDEN", "Tài khoản chưa xác thực email")
     if user.status != "active":
         fail(403, "FORBIDDEN", "Tài khoản không ở trạng thái active")
     access_token = create_token(str(user.id), 60, "access")
@@ -118,10 +135,12 @@ def forgot_password(db: Session, email: str):
     if not user:
         fail(404, "NOT_FOUND", "Không tìm thấy người dùng")
 
-    # Generate and send OTP for password reset
     otp = _generate_otp()
     _store_otp(email, otp)
-    send_otp_email(email, otp)
+    try:
+        send_otp_email(email, otp)
+    except Exception:
+        logger.exception("Failed to send password reset OTP", extra={"email": email})
 
     return ok({"sent": True})
 
