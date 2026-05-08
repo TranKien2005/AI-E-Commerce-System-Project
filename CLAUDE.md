@@ -1,0 +1,123 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository shape
+
+This repository has two active apps:
+- `backend/`: FastAPI + SQLAlchemy + Alembic monolith for auth, buyer, seller, and admin flows.
+- `frontend/`: Vite + React + TypeScript client that currently covers the public shell plus login/register flows.
+
+## Development commands
+
+### Backend
+
+Run these from `backend/`.
+
+- Install dependencies: `pip install -r requirements.txt`
+- Start local infrastructure: `docker compose up -d`
+- Run API server: `uvicorn app.main:app --reload`
+- Run all tests: `pytest`
+- Run one test file: `pytest tests/test_auth.py`
+- Run one test case: `pytest tests/test_auth.py -k login`
+- Run migrations: `alembic upgrade head`
+- Create a migration: `alembic revision --autogenerate -m "message"`
+
+### Frontend
+
+Run these from `frontend/`.
+
+- Install dependencies: `npm install`
+- Start dev server: `npm run dev`
+- Build: `npm run build`
+- Lint: `npm run lint`
+- Preview production build: `npm run preview`
+
+## Local environment assumptions
+
+- Backend defaults to PostgreSQL at `localhost:5432/ecommerce` via `DATABASE_URL` in `app/core/config.py`.
+- `backend/docker-compose.yml` starts PostgreSQL, Redis, and MailHog.
+- MailHog is exposed at `http://localhost:8025`; the register flow expects OTP emails to appear there.
+- Frontend calls the backend at `http://localhost:8000/api/v1` via a hardcoded Axios base URL in `frontend/src/api/client.ts`.
+- Backend CORS currently allows the Vite dev server on `http://localhost:5173` and `http://127.0.0.1:5173`.
+
+## Backend architecture
+
+The backend is organized as a thin-router/service-layer application:
+
+- `app/main.py` creates the FastAPI app, installs CORS, mounts the v1 router, and registers custom exception handlers.
+- `app/api/v1/router.py` composes the API from four role/domain routers: `auth`, `buyer`, `seller`, and `admin`.
+- Route handlers are intended to stay thin; most business logic lives in `app/services/*.py`.
+- Database access is synchronous SQLAlchemy ORM through `app/db/session.py`.
+- ORM models are centralized in `app/models/entities.py`; Alembic uses `app.db.base.Base.metadata` for autogeneration.
+
+Important consequence: when changing behavior, the real implementation is usually in a service module, not the route file.
+
+### Request/response contract
+
+The API uses a custom response envelope instead of raw model returns:
+- success: `{"success": true, "data": ..., "message": ...}` from `app/core/responses.py`
+- failure: `{"success": false, "error": {"code": ..., "message": ..., "details": [...]}}`
+
+`app/core/exceptions.py` normalizes validation errors and unhandled exceptions into this shape. The frontend Axios client depends on this convention and unwraps `response.data.data` automatically on success.
+
+### Auth and authorization flow
+
+- JWT creation/verification lives in `app/core/security.py` and is enforced by dependencies in `app/core/deps.py`.
+- `get_current_user` loads the user from the access token and rejects non-`active` users.
+- Role checks are done with `require_roles(...)`, so seller/admin access rules are dependency-based rather than inline.
+- Auth business logic is in `app/services/auth_service.py`.
+- OTP verification and forgot-password OTPs are stored in an in-memory dictionary today, while a comment notes Redis is the intended production backing store.
+- Refresh-token revocation is also in-memory.
+
+If you change auth semantics, check backend dependencies, auth service logic, and frontend token handling together.
+
+### Domain model and role split
+
+The app models a multi-role e-commerce system in one schema:
+- `User` has `role` and `status` fields that drive access control.
+- Buyers own carts, orders, payments, reviews, notifications, reports, and seller requests.
+- Sellers own `Shop`, `Product`, `ProductImage`, shipping/order management, stats, and chatbot config.
+- Admin functionality is routed separately and works on the same core entities.
+
+Most business flows cross multiple tables. For example:
+- checkout creates `Order` + `OrderItem`, decrements `Product.stock`, clears `CartItem`, creates `Notification`, and sends email
+- seller order updates modify `Order`, may create notifications, and may trigger email sends
+- product deletion is soft delete via `deleted_at`, not row removal
+
+When editing a workflow, search the corresponding service first for side effects on notifications, stock, payment state, and email.
+
+### Persistence and migrations
+
+- Models are defined in `app/models/entities.py` and imported into metadata through `app/db/base.py`.
+- Alembic is configured in `backend/alembic/env.py` to read the runtime `DATABASE_URL` from settings.
+- There is an initial migration in `backend/alembic/versions/8494b1c58eb0_initial.py` that creates the core commerce schema.
+
+If you add or rename model fields, update the ORM model first, then generate and review an Alembic migration.
+
+### Testing shape
+
+- Tests live in `backend/tests/` and use FastAPI `TestClient` from `tests/conftest.py`.
+- The current suite is integration-style: auth, buyer, seller, admin, search, and end-to-end style flows all hit the real app.
+- Test helpers log in through the real `/api/v1/auth/login` endpoint and reuse issued tokens.
+
+Prefer keeping tests at the HTTP/API level unless there is a strong reason to unit-test internals.
+
+## Frontend architecture
+
+The frontend is currently a small client with centralized auth and API plumbing:
+
+- `src/App.tsx` defines the router and wraps the app in `AuthProvider`.
+- `src/context/AuthContext.tsx` owns login/logout state, stores tokens in `localStorage`, and hydrates the current user by calling `/users/me`.
+- `src/api/client.ts` is the single Axios instance; it injects the bearer token and unwraps the backend response envelope.
+- Current pages are `Home`, `Login`, and `Register`; the register flow has a two-step form + OTP confirmation UI.
+- The navbar already assumes future routes like cart and profile exist, even if they are not fully implemented yet.
+
+Important consequence: frontend API work should usually go through `src/api/client.ts` and `AuthContext`, not ad hoc `fetch` calls.
+
+## Cross-cutting behaviors to remember
+
+- Email is part of normal business flows, not just account setup; buyer and seller services call `email_service` directly.
+- Some stateful behavior that would normally live in external infrastructure is currently in process memory (OTP store, refresh-token revocation), so behavior can reset on server restart.
+- Redis is provisioned in Docker Compose but not yet wired into the currently read auth flow.
+- There is no repo-level README or existing CLAUDE.md with additional project rules, and no Cursor/Copilot instruction files were found at the repository root.
