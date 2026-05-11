@@ -31,7 +31,7 @@ Run these from `frontend/`.
 - Start dev server: `npm run dev`
 - Build: `npm run build`
 - Lint: `npm run lint`
-- Preview production build: `npm run preview`
+- Start production server after a build: `npm run start`
 
 ## Local environment assumptions
 
@@ -105,7 +105,9 @@ Prefer keeping tests at the HTTP/API level unless there is a strong reason to un
 
 ## Frontend architecture
 
-The frontend is a Next.js application using the App Router (`app/` directory), Tailwind CSS v4, and Shadcn UI components.
+The frontend is a Next.js application using Next.js 16, React 19, the App Router (`app/` directory), Tailwind CSS v4, and Shadcn UI components.
+
+`frontend/AGENTS.md` notes that this Next.js version has breaking changes from older training data; read the relevant guide in `node_modules/next/dist/docs/` before changing Next.js APIs or conventions.
 
 - `src/app/` contains all the page routes (e.g., `page.tsx`, `products/page.tsx`).
 - `src/components/` contains reusable UI components and Shadcn UI components (`src/components/ui/`).

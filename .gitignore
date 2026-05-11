@@ -158,6 +158,10 @@ cython_debug/
 !.vscode/extensions.json
 *.code-workspace
 
+# Claude local settings
+.claude/settings.local.json
+.claude/worktrees/
+
 # Node.js
 node_modules/
 npm-debug.log*
@@ -168,6 +172,7 @@ yarn-error.log*
 # Frontend dist
 frontend/dist/
 frontend/build/
+frontend/**/.next/
 
 # OS generated files
 .DS_Store

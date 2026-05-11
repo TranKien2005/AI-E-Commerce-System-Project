@@ -3,10 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "npm run dev:storefront",
+    "dev:storefront": "next dev storefront -p 3000",
+    "dev:admin": "next dev admin -p 3001",
+    "build": "npm run build:storefront && npm run build:admin",
+    "build:storefront": "next build storefront",
+    "build:admin": "next build admin",
+    "start:storefront": "next start storefront -p 3000",
+    "start:admin": "next start admin -p 3001",
+    "lint": "npm run lint:storefront && npm run lint:admin",
+    "lint:storefront": "cd storefront && eslint src",
+    "lint:admin": "cd admin && eslint src"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -58,6 +58,8 @@ def register(db: Session, email: str, password: str, full_name: str):
     email = email.strip().lower()
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
+        if existing.email_verified_at is None or existing.status == "pending_verification":
+            return resend_verification_otp(db, email)
         fail(409, "CONFLICT", "Email đã tồn tại")
     user = User(
         email=email,
@@ -94,6 +96,23 @@ def verify_otp(db: Session, email: str, otp: str):
         user.status = "active"
     db.commit()
     return ok({"verified": True})
+
+
+def resend_verification_otp(db: Session, email: str):
+    email = email.strip().lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if not user:
+        fail(404, "NOT_FOUND", "Không tìm thấy người dùng")
+    if user.email_verified_at is not None and user.status == "active":
+        fail(409, "CONFLICT", "Email đã được xác thực")
+
+    otp = _generate_otp()
+    _store_otp(email, otp)
+    try:
+        send_otp_email(email, otp)
+    except Exception:
+        logger.exception("Failed to resend verification OTP", extra={"email": email})
+    return ok({"sent": True, "email": email})
 
 
 def login(db: Session, email: str, password: str):
