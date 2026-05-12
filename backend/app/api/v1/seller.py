@@ -7,6 +7,7 @@ from app.core.deps import require_roles
 from app.core.responses import ok
 from app.db.session import get_db
 from app.models.entities import User
+from app.schemas.buyer import MessageIn
 from app.schemas.seller import ChatbotConfigIn, ProductIn, ShopIn
 from app.services import seller_service
 
@@ -21,6 +22,10 @@ class OrderStatusIn(BaseModel):
 class ShippingIn(BaseModel):
     shipping_status: str
     shipping_note: str = ""
+
+
+class ProductImagePatchIn(BaseModel):
+    is_primary: bool
 
 
 @router.get("/shop")
@@ -63,9 +68,14 @@ def add_product_image(id: int, url: str, is_primary: bool = False, db: Session =
     return seller_service.add_product_image(db, current_user, id, url, is_primary)
 
 
+@router.patch("/products/images/{id}")
+def patch_product_image(id: int, payload: ProductImagePatchIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
+    return seller_service.set_product_image_primary(db, current_user, id, payload.is_primary)
+
+
 @router.delete("/products/images/{id}", status_code=204)
 def delete_product_image(id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
-    seller_service.delete_product_image(db, id)
+    seller_service.delete_product_image(db, current_user, id)
 
 
 @router.get("/orders")
@@ -86,6 +96,26 @@ def update_order_status(id: int, payload: OrderStatusIn, db: Session = Depends(g
 @router.patch("/orders/{id}/shipping")
 def update_shipping(id: int, payload: ShippingIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
     return seller_service.update_shipping(db, current_user, id, payload.shipping_status, payload.shipping_note)
+
+
+@router.get("/chat/conversations")
+def list_chat_conversations(db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
+    return seller_service.list_chat_conversations(db, current_user)
+
+
+@router.get("/chat/conversations/{conversation_id}/messages")
+def list_chat_messages(conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
+    return seller_service.list_chat_messages(db, current_user, conversation_id)
+
+
+@router.post("/chat/conversations/{conversation_id}/messages", status_code=201)
+def send_chat_message(conversation_id: int, payload: MessageIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
+    return seller_service.send_chat_message(db, current_user, conversation_id, payload.content)
+
+
+@router.patch("/chat/conversations/{conversation_id}/read")
+def read_chat_conversation(conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_roles("seller", "admin"))):
+    return seller_service.read_chat_conversation(db, current_user, conversation_id)
 
 
 @router.get("/chatbot-config")

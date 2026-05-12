@@ -5,6 +5,15 @@ class UpdateMeIn(BaseModel):
     full_name: str
 
 
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class DeleteAccountIn(BaseModel):
+    current_password: str
+
+
 class CartAddIn(BaseModel):
     product_id: int
     quantity: int
@@ -21,6 +30,7 @@ class CreateOrderIn(BaseModel):
 class ReviewIn(BaseModel):
     product_id: int
     rating: int
+    title: str = ""
     comment: str = ""
 
 

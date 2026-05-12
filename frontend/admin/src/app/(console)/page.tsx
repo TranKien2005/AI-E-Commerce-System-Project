@@ -1,14 +1,11 @@
 import { AdminPageHeader } from "@/components/AdminShell";
 import AdminDashboardClient from "@/components/AdminDashboardClient";
+import { adminCopy } from "@/lib/copy";
 
 export default function AdminDashboardPage() {
   return (
     <>
-      <AdminPageHeader
-        eyebrow="Admin control plane"
-        title="Tổng quan vận hành hệ thống"
-        description="Dashboard lấy metrics, hàng chờ và audit log trực tiếp từ backend. Đăng nhập admin để xem dữ liệu thật."
-      />
+      <AdminPageHeader eyebrow={adminCopy.dashboard.eyebrow} title={adminCopy.dashboard.title} description={adminCopy.dashboard.description} />
       <AdminDashboardClient />
     </>
   );

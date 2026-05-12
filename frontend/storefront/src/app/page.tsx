@@ -1,151 +1,143 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Bot, PackageCheck, Sparkles, Store, Truck } from "lucide-react";
+import { ArrowRight, BadgePercent, Headphones, ShieldCheck, Store, Truck } from "lucide-react";
 import SearchModeBar from "@/components/SearchModeBar";
-import { getCategories, getRecommendedProducts } from "@/lib/storefront-api";
+import { getCategories, getProducts, getRecommendedProducts } from "@/lib/storefront-api";
 import { formatVnd } from "@/lib/format";
+import { safeImageUrl } from "@/lib/image";
 
-const placeholderImage = "https://images.unsplash.com/photo-1607082349566-187342175e2f?w=900&q=80";
+type HomeProduct = {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  primary_image: string | null;
+  shop_name: string | null;
+};
 
-export default async function Home() {
-  const [productsResult, categoriesResult] = await Promise.allSettled([getRecommendedProducts(4), getCategories()]);
-  const featured = productsResult.status === "fulfilled" ? productsResult.value.items : [];
-  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value.items.filter((category) => category.parent_id === null).slice(0, 8) : [];
-  const heroProduct = featured[0];
+function ProductCard({ product }: { product: HomeProduct }) {
+  return (
+    <Link href={`/products/${product.id}`} className="group overflow-hidden rounded-[1.4rem] border border-slate-200/70 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+      <div className="relative aspect-square bg-slate-100">
+        <Image src={safeImageUrl(product.primary_image)} alt={product.name} fill sizes="(min-width: 1280px) 16vw, (min-width: 768px) 25vw, 50vw" className="object-cover mix-blend-multiply transition duration-500 group-hover:scale-105" />
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-700">In stock</span>
+      </div>
+      <div className="p-4">
+        <p className="line-clamp-2 min-h-10 text-sm font-medium leading-5 text-slate-800">{product.name}</p>
+        <p className="mt-2 truncate text-xs text-slate-400">{product.shop_name ?? "Official shop"}</p>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="text-lg font-semibold text-slate-950">{formatVnd(product.price)}</span>
+          <span className="text-xs text-slate-400">{product.stock} left</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ProductRail({ title, href, products }: { title: string; href: string; products: HomeProduct[] }) {
+  if (!products.length) return null;
 
   return (
-    <div className="overflow-hidden pb-24">
-      <section className="premium-section relative min-h-[calc(100vh-5rem)] py-16 lg:py-24">
-        <div className="absolute left-1/2 top-10 -z-10 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-blue-100/70 blur-3xl" />
-        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-          <div>
-            <p className="eyebrow mb-6">AI-powered marketplace</p>
-            <h1 className="max-w-4xl text-6xl font-light leading-[0.98] text-slate-950 md:text-8xl">
-              Mua sắm đúng ý định, không chỉ đúng từ khóa.
-            </h1>
-            <p className="mt-7 max-w-2xl text-lg font-light leading-8 text-slate-500">
-              Aeris Market là sàn thương mại điện tử tích hợp tìm kiếm theo ý định, gợi ý sản phẩm phù hợp nhu cầu và công cụ hỗ trợ người bán vận hành cửa hàng.
-            </p>
-            <div className="mt-9">
+    <section className="premium-section py-8">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-2xl font-semibold text-slate-950 md:text-3xl">{title}</h2>
+        <Link href={href} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950 hover:text-slate-700">See all <ArrowRight size={16} /></Link>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+        {products.slice(0, 6).map((product) => <ProductCard key={product.id} product={product} />)}
+      </div>
+    </section>
+  );
+}
+
+export default async function Home() {
+  const [recommendedResult, latestResult, bestPriceResult, gridResult, categoriesResult] = await Promise.allSettled([
+    getRecommendedProducts(12),
+    getProducts({ sort: "newest", page_size: "12" }),
+    getProducts({ sort: "price_asc", page_size: "12" }),
+    getProducts({ page_size: "24" }),
+    getCategories(),
+  ]);
+  const recommended = recommendedResult.status === "fulfilled" ? recommendedResult.value.items : [];
+  const latest = latestResult.status === "fulfilled" ? latestResult.value.products.items : [];
+  const bestPrice = bestPriceResult.status === "fulfilled" ? bestPriceResult.value.products.items : [];
+  const gridProducts = gridResult.status === "fulfilled" ? gridResult.value.products.items : [];
+  const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value.items.filter((category) => category.parent_id === null).slice(0, 10) : [];
+  const heroProduct = recommended[0] ?? latest[0] ?? bestPrice[0];
+
+  return (
+    <div className="bg-slate-50 pb-24">
+      <section className="premium-section py-8">
+        <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
+          <div className="rounded-[2rem] border border-white/80 bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 p-6 text-white shadow-xl md:p-10">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-white/75">Marketplace deals</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight md:text-6xl">Shop real products from trusted stores</h1>
+            <p className="mt-4 max-w-2xl text-white/80">Search products, compare prices, chat with shops, and manage orders from one marketplace.</p>
+            <div className="mt-7 max-w-3xl rounded-[1.5rem] bg-white/95 p-3 text-slate-950 shadow-2xl">
               <SearchModeBar />
-              <p className="mt-4 text-sm text-slate-400">Chọn “Thường” cho keyword search hoặc “Intent AI” để mô tả nhu cầu tự nhiên.</p>
             </div>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link href="/products" className="premium-button">
-                Khám phá sản phẩm <ArrowRight size={18} />
-              </Link>
-              <Link href="/seller-request" className="premium-button-light">
-                Mở cửa hàng <Store size={18} />
-              </Link>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/products" className="rounded-full bg-white px-5 py-3 text-sm font-bold text-slate-950 shadow-sm">Start shopping</Link>
+              <Link href="/seller-request" className="rounded-full bg-white/10 px-5 py-3 text-sm font-bold text-white ring-1 ring-white/25">Open a shop</Link>
             </div>
           </div>
 
-          <div className="relative">
-            <div className="premium-panel p-4 md:p-6">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-gradient-to-br from-white to-slate-100">
-                {heroProduct ? (
-                  <>
-                    <Image src={heroProduct.primary_image ?? placeholderImage} alt={heroProduct.name} fill priority className="object-cover mix-blend-multiply" />
-                    <div className="absolute inset-x-5 bottom-5 rounded-[1.5rem] border border-white/70 bg-white/70 p-5 backdrop-blur-2xl">
-                      <p className="eyebrow mb-2">Sản phẩm từ catalog thật</p>
-                      <h2 className="text-2xl font-light text-slate-950">{heroProduct.name}</h2>
-                      <div className="mt-4 flex items-center justify-between">
-                        <span className="text-lg font-semibold">{formatVnd(heroProduct.price)}</span>
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Còn {heroProduct.stock}</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">Chưa tải được sản phẩm từ backend.</div>
-                )}
-              </div>
+          <Link href={heroProduct ? `/products/${heroProduct.id}` : "/products"} className="group overflow-hidden rounded-[2rem] bg-white p-4 shadow-xl">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-slate-100">
+              {heroProduct ? <Image src={safeImageUrl(heroProduct.primary_image)} alt={heroProduct.name} fill priority sizes="(min-width: 1024px) 22rem, 100vw" className="object-cover mix-blend-multiply transition duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-sm text-slate-500">No product loaded</div>}
             </div>
-            <div className="premium-card absolute -left-8 top-14 hidden w-52 p-5 lg:block">
-              <Sparkles className="mb-4 text-slate-950" />
-              <p className="text-sm font-semibold text-slate-950">Intent Search</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Mô tả nhu cầu để backend tìm sản phẩm phù hợp trong catalog.</p>
+            <div className="p-3">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-600">Featured item</p>
+              <h2 className="mt-2 line-clamp-2 text-xl font-semibold text-slate-950">{heroProduct?.name ?? "Browse the catalog"}</h2>
+              {heroProduct && <p className="mt-2 text-lg font-bold text-slate-950">{formatVnd(heroProduct.price)}</p>}
             </div>
-            <div className="premium-card absolute -right-8 bottom-16 hidden w-52 p-5 lg:block">
-              <Bot className="mb-4 text-slate-950" />
-              <p className="text-sm font-semibold text-slate-950">Seller Chatbot</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Người bán tự cấu hình prompt, template và bật/tắt bot.</p>
-            </div>
-          </div>
+          </Link>
         </div>
       </section>
 
-      <section className="premium-section py-10">
-        <div className="grid gap-4 md:grid-cols-4">
+      <section className="premium-section py-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            [Sparkles, "Intent search", "Tìm bằng mô tả tự nhiên"],
-            [Truck, "Order & shipping", "Theo dõi đơn và trạng thái giao hàng"],
-            [Bot, "Chatbot", "Chat với cửa hàng và trợ lý hỗ trợ"],
-            [PackageCheck, "Catalog thật", "Sản phẩm, tồn kho và shop lấy từ backend"],
+            [Truck, "Order Tracking", "Follow marketplace orders from checkout to delivery"],
+            [ShieldCheck, "Buyer Protection", "Secure checkout and order tracking"],
+            [BadgePercent, "Daily Deals", "Fresh offers from marketplace sellers"],
+            [Headphones, "Shop Chat", "Message stores from the chat bubble"],
           ].map(([Icon, title, text]) => (
-            <div key={String(title)} className="premium-card p-6">
-              <Icon className="mb-5 text-slate-950" size={24} />
-              <h3 className="text-lg font-semibold text-slate-950">{String(title)}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">{String(text)}</p>
+            <div key={String(title)} className="rounded-[1.5rem] bg-white p-5 shadow-sm">
+              <Icon className="mb-3 text-sky-600" size={24} />
+              <h3 className="font-semibold text-slate-950">{String(title)}</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">{String(text)}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="premium-section py-16">
-        <div className="mb-10 flex items-end justify-between gap-6">
-          <div>
-            <p className="eyebrow mb-3">Danh mục</p>
-            <h2 className="text-4xl font-light text-slate-950 md:text-5xl">Khám phá theo taxonomy</h2>
-          </div>
-          <Link href="/products" className="hidden text-sm font-semibold text-slate-500 transition hover:text-slate-950 md:inline-flex">Xem tất cả</Link>
+      <section className="premium-section py-8">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-2xl font-semibold text-slate-950 md:text-3xl">Categories</h2>
+          <Link href="/products" className="text-sm font-semibold text-slate-950">View catalog</Link>
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {categories.map((category) => (
-            <Link key={category.id} href={`/products?category_id=${category.id}&mode=keyword`} className="min-w-48 rounded-[2rem] border border-white/70 bg-white/65 p-6 shadow-sm transition hover:-translate-y-1 hover:bg-white">
-              <span className="text-sm font-semibold text-slate-950">{category.name}</span>
-              <p className="mt-3 text-xs leading-5 text-slate-500">Xem sản phẩm thuộc nhóm {category.name.toLowerCase()}.</p>
+            <Link key={category.id} href={`/products?category_id=${category.id}`} className="rounded-[1.25rem] bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <Store className="mx-auto mb-3 text-sky-600" size={24} />
+              <span className="line-clamp-2 text-sm font-semibold text-slate-800">{category.name}</span>
             </Link>
           ))}
         </div>
       </section>
 
-      <section className="premium-section py-16">
-        <div className="mb-10 flex items-end justify-between gap-6">
-          <div>
-            <p className="eyebrow mb-3">Sản phẩm nổi bật</p>
-            <h2 className="text-4xl font-light text-slate-950 md:text-5xl">Dữ liệu từ backend</h2>
-          </div>
-          <Link href="/products" className="premium-button-light hidden md:inline-flex">Tới catalog <ArrowRight size={17} /></Link>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((product) => (
-            <Link key={product.id} href={`/products/${product.id}`} className="group premium-card overflow-hidden p-3">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-slate-100">
-                <Image src={product.primary_image ?? placeholderImage} alt={product.name} fill className="object-cover mix-blend-multiply transition duration-700 group-hover:scale-105" />
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">{product.shop_name ?? "Cửa hàng"}</p>
-                <h3 className="mt-2 text-xl font-light text-slate-950">{product.name}</h3>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="font-semibold">{formatVnd(product.price)}</span>
-                  <span className="text-xs text-slate-400">Còn {product.stock}</span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <ProductRail title="Recommended For You" href="/products" products={recommended} />
+      <ProductRail title="Latest Products" href="/products?sort=newest" products={latest} />
+      <ProductRail title="Best Price" href="/products?sort=price_asc" products={bestPrice} />
 
-      <section className="premium-section py-16">
-        <div className="premium-panel grid gap-8 p-8 md:grid-cols-[1fr_auto] md:p-12">
-          <div>
-            <p className="eyebrow mb-3">Dành cho người bán</p>
-            <h2 className="text-4xl font-light text-slate-950">Đăng ký cửa hàng để đưa sản phẩm thật lên Aeris Market.</h2>
-            <p className="mt-4 max-w-2xl text-slate-500">Gửi thông tin cửa hàng, danh mục kinh doanh và liên hệ để đội ngũ vận hành xét duyệt trước khi bắt đầu bán hàng.</p>
-          </div>
-          <div className="flex flex-col justify-center gap-3 sm:flex-row md:flex-col">
-            <Link href="/seller-request" className="premium-button">Đăng ký mở cửa hàng</Link>
-          </div>
+      <section className="premium-section py-8">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold text-slate-950 md:text-3xl">More to Love</h2>
+          <Link href="/products" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950 hover:text-slate-700">Explore all <ArrowRight size={16} /></Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+          {gridProducts.map((product) => <ProductCard key={product.id} product={product} />)}
         </div>
       </section>
     </div>

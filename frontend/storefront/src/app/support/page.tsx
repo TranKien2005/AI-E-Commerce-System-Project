@@ -1,78 +1,60 @@
-"use client";
-
-import { Search, MessageCircle, FileText, Phone, HelpCircle, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, FileText, HelpCircle, MessageCircle, PackageCheck, Search, Store, Truck } from "lucide-react";
 
 export default function SupportPage() {
   const faqs = [
-    "Làm thế nào để kết nối thiết bị với Wifi?",
-    "Bao lâu thì tôi nên thay màng lọc HEPA?",
-    "Chính sách bảo hành 1 đổi 1 trong 30 ngày là gì?",
-    "Tôi có thể điều khiển máy qua ứng dụng di động không?",
-    "Làm sao để biết chất lượng không khí trong phòng?",
+    "How do I track an order?",
+    "How do refunds and returns work?",
+    "How can I contact a shop?",
+    "How do I report a product or seller?",
+    "How do I apply to become a seller?",
   ];
 
   const contactMethods = [
-    { icon: Phone, title: "Tổng đài", info: "1900 88xx (8:00 - 21:00)", color: "bg-blue-500/10 text-blue-600" },
-    { icon: MessageCircle, title: "Chat trực tiếp", info: "Hỗ trợ 24/7 qua Messenger/Zalo", color: "bg-emerald-500/10 text-emerald-600" },
-    { icon: FileText, title: "Gửi yêu cầu", info: "Chúng tôi sẽ phản hồi trong 24h", color: "bg-purple-500/10 text-purple-600" },
+    { icon: MessageCircle, title: "Shop chat", info: "Use the floating chat bubble to message sellers.", href: "/products" },
+    { icon: PackageCheck, title: "Orders", info: "Review order, payment, and shipping status.", href: "/orders" },
+    { icon: FileText, title: "Reports", info: "Submit product, shop, or seller reports.", href: "/reports/new" },
   ];
 
   return (
-    <div className="container mx-auto px-6 py-12 md:py-20 max-w-5xl">
-      <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-5xl font-light mb-6 tracking-tight">Chúng tôi có thể giúp gì?</h1>
-        <div className="relative max-w-xl mx-auto">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} strokeWidth={1.5} />
-          <input 
-            type="text" 
-            placeholder="Tìm kiếm hướng dẫn, mã lỗi, chính sách..."
-            className="w-full h-14 pl-12 pr-6 rounded-2xl bg-secondary/50 border-none focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-          />
+    <div className="premium-section py-12 pb-24">
+      <div className="mx-auto mb-12 max-w-4xl text-center">
+        <p className="eyebrow mb-4">Support</p>
+        <h1 className="text-5xl font-light text-slate-950 md:text-7xl">How can we help?</h1>
+        <div className="relative mx-auto mt-8 max-w-xl">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input type="text" placeholder="Search orders, shipping, returns, seller help..." className="h-14 w-full rounded-2xl border border-white/70 bg-white/80 pl-12 pr-6 text-sm outline-none" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
-        {contactMethods.map((method, idx) => (
-          <div key={idx} className="bg-background border border-border rounded-3xl p-8 hover:shadow-xl hover:shadow-primary/5 transition-all cursor-pointer group">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 ${method.color}`}>
-              <method.icon size={24} strokeWidth={2} />
-            </div>
-            <h3 className="text-lg font-medium mb-2">{method.title}</h3>
-            <p className="text-sm text-muted-foreground">{method.info}</p>
-          </div>
+      <div className="mb-12 grid gap-5 md:grid-cols-3">
+        {contactMethods.map((method) => (
+          <Link key={method.title} href={method.href} className="premium-panel p-8 transition hover:-translate-y-1">
+            <method.icon className="mb-6 text-orange-500" size={28} />
+            <h2 className="text-xl font-semibold text-slate-950">{method.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{method.info}</p>
+          </Link>
         ))}
       </div>
 
-      <div className="space-y-12">
-        <div>
-          <h2 className="text-2xl font-light mb-8 flex items-center gap-3">
-            <HelpCircle size={24} className="text-primary" strokeWidth={1.5} />
-            Câu hỏi thường gặp
-          </h2>
-          <div className="grid grid-cols-1 gap-4">
-            {faqs.map((faq, idx) => (
-              <button 
-                key={idx} 
-                className="flex items-center justify-between p-6 bg-secondary/30 hover:bg-secondary/60 rounded-2xl transition-colors text-left group"
-              >
-                <span className="text-sm font-medium">{faq}</span>
-                <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
+      <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
+        <section className="premium-panel p-8">
+          <h2 className="mb-6 flex items-center gap-3 text-2xl font-light text-slate-950"><HelpCircle size={24} /> Frequently asked questions</h2>
+          <div className="grid gap-3">
+            {faqs.map((faq) => (
+              <button key={faq} className="flex items-center justify-between rounded-2xl bg-slate-50 p-5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                {faq}
+                <ChevronRight size={18} className="text-slate-400" />
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="bg-primary/5 rounded-[2.5rem] p-10 md:p-16 border border-primary/10 flex flex-col md:flex-row items-center gap-8 justify-between">
-          <div className="max-w-md text-center md:text-left">
-            <h3 className="text-2xl font-light mb-4">Chưa tìm thấy câu trả lời?</h3>
-            <p className="text-muted-foreground font-light leading-relaxed">
-              Đội ngũ chuyên gia của Aeris luôn sẵn sàng hỗ trợ bạn khắc phục mọi vấn đề kỹ thuật.
-            </p>
-          </div>
-          <button className="h-14 px-10 rounded-full bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity whitespace-nowrap">
-            Kết nối với chuyên gia
-          </button>
-        </div>
+        </section>
+        <aside className="premium-panel h-max p-8">
+          <Truck className="mb-5 text-orange-500" size={28} />
+          <h2 className="text-2xl font-light text-slate-950">Marketplace help center</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-500">For seller onboarding, product reports, shipping issues, and order support, use the linked workflows in your account.</p>
+          <Link href="/seller-request" className="premium-button mt-6 w-full"><Store size={17} /> Open a shop</Link>
+        </aside>
       </div>
     </div>
   );

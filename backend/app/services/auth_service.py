@@ -117,7 +117,7 @@ def resend_verification_otp(db: Session, email: str):
 
 def login(db: Session, email: str, password: str):
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
-    if not user or not verify_password(password, user.password):
+    if not user or user.deleted_at is not None or not verify_password(password, user.password):
         fail(401, "UNAUTHORIZED", "Sai thông tin đăng nhập")
     if user.email_verified_at is None:
         fail(403, "FORBIDDEN", "Tài khoản chưa xác thực email")

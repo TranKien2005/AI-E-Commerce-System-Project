@@ -10,7 +10,7 @@ export function LabeledBarChart({
   kind?: "requests" | "errors" | "latency";
 }) {
   const max = Math.max(...trafficSeries.map((item) => item[kind]));
-  const label = kind === "requests" ? "request/phút" : kind === "errors" ? "lỗi" : "ms";
+  const label = kind === "requests" ? "requests/min" : kind === "errors" ? "errors" : "ms";
   const color = kind === "errors" ? "bg-rose-500" : kind === "latency" ? "bg-amber-500" : "bg-slate-950";
 
   return (
@@ -45,7 +45,7 @@ export function LabeledBarChart({
               </div>
             ))}
           </div>
-          <div className="mt-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Thời điểm trong ngày</div>
+          <div className="mt-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Time of day</div>
         </div>
       </div>
     </section>

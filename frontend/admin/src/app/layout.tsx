@@ -4,17 +4,17 @@ import "./globals.css";
 
 const inter = Inter({
   variable: "--font-sans",
-  subsets: ["latin", "vietnamese"],
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: "Aeris Admin | Control Plane",
-  description: "Bảng điều khiển quản trị hệ thống Aeris Market.",
+  description: "System administration console for Aeris Market.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

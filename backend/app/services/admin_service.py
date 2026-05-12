@@ -21,6 +21,8 @@ def patch_user(db: Session, admin_id: int, user_id: int, status: str | None, rol
     user = db.get(User, user_id)
     if not user:
         fail(404, "NOT_FOUND", "Không tìm thấy người dùng")
+    if user_id == admin_id and ((role and role != "admin") or (status and status != "active")):
+        fail(400, "BAD_REQUEST", "Admin cannot remove their own access")
     if status:
         user.status = status
     if role:
@@ -31,7 +33,7 @@ def patch_user(db: Session, admin_id: int, user_id: int, status: str | None, rol
 
 
 def list_seller_requests(db: Session):
-    items = db.scalars(select(SellerRequest)).all()
+    items = db.scalars(select(SellerRequest).where(SellerRequest.status == "pending").order_by(SellerRequest.id.desc())).all()
     return ok({"items": [{"id": i.id, "user_id": i.user_id, "shop_name": i.shop_name, "status": i.status} for i in items]})
 
 
@@ -41,6 +43,8 @@ def patch_seller_request(db: Session, admin_id: int, request_id: int, action: st
         fail(404, "NOT_FOUND", "Không tìm thấy yêu cầu")
     if action not in {"approve", "reject"}:
         fail(400, "BAD_REQUEST", "Hành động không hợp lệ")
+    if req.status != "pending":
+        fail(400, "BAD_REQUEST", "Yêu cầu này đã được xử lý")
     req.status = "approved" if action == "approve" else "rejected"
     req.reason = reason
     email_payload: tuple[str, str, str] | None = None

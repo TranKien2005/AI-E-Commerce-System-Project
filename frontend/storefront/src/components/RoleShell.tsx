@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ReactNode } from "react";
+import { sellerCopy } from "@/lib/copy";
 
 export function RoleShell({ title, eyebrow, links, children }: { title: string; eyebrow: string; links: { href: string; label: string }[]; children: ReactNode }) {
   return (
@@ -19,12 +20,11 @@ export function RoleShell({ title, eyebrow, links, children }: { title: string; 
 }
 
 export const sellerLinks = [
-  { href: "/seller", label: "Overview" },
-  { href: "/seller/shop", label: "Cửa hàng" },
-  { href: "/seller/products", label: "Sản phẩm" },
-  { href: "/seller/orders", label: "Đơn hàng" },
-  { href: "/chat", label: "Chat khách" },
-  { href: "/seller/chatbot", label: "Chatbot" },
-  { href: "/seller/stats", label: "Thống kê" },
+  { href: "/seller", label: sellerCopy.shell.links.overview },
+  { href: "/seller/shop", label: sellerCopy.shell.links.shop },
+  { href: "/seller/products", label: sellerCopy.shell.links.products },
+  { href: "/seller/orders", label: sellerCopy.shell.links.orders },
+  { href: "/seller/chatbot", label: sellerCopy.shell.links.chatbot },
+  { href: "/seller/stats", label: sellerCopy.shell.links.analytics },
 ];
 

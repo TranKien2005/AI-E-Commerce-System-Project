@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.core.responses import fail, ok
 from app.db.session import get_db
-from app.models.entities import Category, Conversation, Message, Product, ProductImage, Review, Shop, User
-from app.schemas.buyer import CartAddIn, CreateOrderIn, IntentSearchIn, MessageIn, NotificationReadIn, ReportIn, ReviewIn, SellerRequestIn, UpdateMeIn
+from app.models.entities import Category, Conversation, Message, Notification, Product, ProductImage, ProductVideo, Review, Shop, User
+from app.schemas.buyer import CartAddIn, ChangePasswordIn, CreateOrderIn, DeleteAccountIn, IntentSearchIn, MessageIn, NotificationReadIn, ReportIn, ReviewIn, SellerRequestIn, UpdateMeIn
 from app.services import buyer_service, search_service
+from app.services.chat_events import chat_events
+from app.services.search_service import sanitize_image_url
 
 
 router = APIRouter(tags=["buyer"])
@@ -19,7 +21,8 @@ class CartUpdateIn(BaseModel):
 
 
 class ConversationIn(BaseModel):
-    seller_id: int
+    seller_id: int | None = None
+    shop_id: int | None = None
 
 
 def _mask_message_sender(m: Message) -> dict:
@@ -34,8 +37,8 @@ def _mask_message_sender(m: Message) -> dict:
     }
 
 
-def _ensure_conversation_member(conversation: Conversation, user_id: int) -> bool:
-    return conversation.buyer_id == user_id or conversation.seller_id == user_id
+def _ensure_buyer_conversation_member(conversation: Conversation, user_id: int) -> bool:
+    return conversation.buyer_id == user_id
 
 
 def _mask_shop(shop: Shop | None):
@@ -54,6 +57,16 @@ def update_me(payload: UpdateMeIn, db: Session = Depends(get_db), current_user: 
     return buyer_service.update_me(db, current_user, payload.full_name)
 
 
+@router.patch("/users/me/password")
+def change_password(payload: ChangePasswordIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return buyer_service.change_password(db, current_user, payload.current_password, payload.new_password)
+
+
+@router.delete("/users/me")
+def delete_account(payload: DeleteAccountIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return buyer_service.delete_account(db, current_user, payload.current_password)
+
+
 @router.get("/categories")
 def list_categories(db: Session = Depends(get_db)):
     return buyer_service.list_categories(db)
@@ -68,30 +81,36 @@ def list_products(
     shop_id: int | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
+    min_rating: int | None = None,
     sort: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    shop_page: int = 1,
+    shop_page_size: int = 4,
     db: Session = Depends(get_db),
 ):
     query_text = q if q is not None else (keyword or "")
-    data = search_service.search_products(
+    data = search_service.search_marketplace(
         db,
         query=query_text,
         page=page,
         page_size=page_size,
+        shop_page=shop_page,
+        shop_page_size=shop_page_size,
         category_id=category_id,
         shop_id=shop_id,
         min_price=min_price,
         max_price=max_price,
+        min_rating=min_rating,
         sort=sort,
     )
-    return ok(data)
+    return ok({**data, "items": data["products"]["items"], "meta": data["products"]["meta"]})
 
 
 @router.post("/products/intent-search")
 def intent_search(payload: IntentSearchIn, db: Session = Depends(get_db)):
-    data = search_service.search_products(db, query=payload.query, page=payload.page, page_size=payload.page_size)
-    return ok(data)
+    data = search_service.search_marketplace(db, query=payload.query, page=payload.page, page_size=payload.page_size)
+    return ok({**data, "items": data["products"]["items"], "meta": data["products"]["meta"]})
 
 
 @router.get("/products/recommend")
@@ -105,7 +124,30 @@ def list_product_reviews(id: int, db: Session = Depends(get_db)):
     if not product:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
     items = db.scalars(select(Review).where(Review.product_id == id)).all()
-    return ok({"items": [{"id": r.id, "user_id": r.user_id, "rating": r.rating, "comment": r.comment} for r in items]})
+    return ok({"items": [{
+        "id": r.id,
+        "user_id": r.user_id,
+        "rating": r.rating,
+        "title": r.title,
+        "comment": r.comment,
+        "verified_purchase": r.verified_purchase,
+        "helpful_votes": r.helpful_votes,
+    } for r in items]})
+
+
+@router.get("/shops")
+def list_shops(q: str | None = None, page: int = 1, page_size: int = 12, db: Session = Depends(get_db)):
+    stmt = select(Shop).where(Shop.status == "active")
+    if q:
+        stmt = stmt.where(Shop.name.ilike(f"%{q}%"))
+    shops = db.scalars(stmt.order_by(Shop.id.desc())).all()
+    total = len(shops)
+    start = (page - 1) * page_size
+    items = shops[start:start + page_size]
+    return ok({
+        "items": [_mask_shop(shop) for shop in items],
+        "meta": {"page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size if page_size else 1},
+    })
 
 
 @router.get("/shops/{id}")
@@ -146,23 +188,58 @@ def mark_all_notifications_read(db: Session = Depends(get_db), current_user: Use
     return buyer_service.mark_all_notifications_read(db, current_user)
 
 
+@router.delete("/notifications/{id}", status_code=204)
+def delete_notification(id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    buyer_service.delete_notification(db, current_user, id)
+
+
 @router.post("/chat/conversations", status_code=201)
 def create_conversation(payload: ConversationIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    seller = db.get(User, payload.seller_id)
+    seller_id = payload.seller_id
+    if payload.shop_id is not None:
+        shop = db.get(Shop, payload.shop_id)
+        if not shop:
+            fail(404, "NOT_FOUND", "Shop not found")
+        seller_id = shop.owner_id
+    if seller_id is None:
+        fail(400, "BAD_REQUEST", "seller_id or shop_id is required")
+    seller = db.get(User, seller_id)
     if not seller or seller.role not in {"seller", "admin"}:
-        fail(404, "NOT_FOUND", "Không tìm thấy người bán")
-    conversation = db.scalar(select(Conversation).where(Conversation.buyer_id == current_user.id, Conversation.seller_id == payload.seller_id))
+        fail(404, "NOT_FOUND", "Seller not found")
+    conversation = db.scalar(select(Conversation).where(Conversation.buyer_id == current_user.id, Conversation.seller_id == seller_id, Conversation.shop_id == payload.shop_id))
     if not conversation:
-        conversation = Conversation(buyer_id=current_user.id, seller_id=payload.seller_id)
+        conversation = Conversation(buyer_id=current_user.id, seller_id=seller_id, shop_id=payload.shop_id)
         db.add(conversation)
         db.commit()
+        chat_events.publish_from_thread(seller_id, {"type": "chat_conversation", "conversation_id": conversation.id, "shop_id": conversation.shop_id})
     return ok({"id": conversation.id})
+
+
+def _mask_conversation_summary(db: Session, conversation: Conversation, current_user_id: int) -> dict:
+    seller = db.get(User, conversation.seller_id)
+    shop = db.get(Shop, conversation.shop_id) if conversation.shop_id else db.scalar(select(Shop).where(Shop.owner_id == conversation.seller_id))
+    last_message = db.scalar(select(Message).where(Message.conversation_id == conversation.id).order_by(Message.id.desc()))
+    unread = db.scalars(select(Message).where(Message.conversation_id == conversation.id, Message.is_read.is_(False), Message.sender_id != current_user_id)).all()
+    return {
+        "id": conversation.id,
+        "buyer_id": conversation.buyer_id,
+        "seller_id": conversation.seller_id,
+        "seller_name": seller.full_name if seller else "Seller",
+        "shop_id": shop.id if shop else None,
+        "shop_name": shop.name if shop else (seller.full_name if seller else "Shop"),
+        "is_bot_enabled": conversation.is_bot_enabled,
+        "last_message": last_message.content if last_message else "",
+        "last_message_at": last_message.created_at.isoformat() if last_message and last_message.created_at else None,
+        "unread_count": len(unread),
+    }
 
 
 @router.get("/chat/conversations")
 def list_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = db.scalars(select(Conversation).where((Conversation.buyer_id == current_user.id) | (Conversation.seller_id == current_user.id))).all()
-    return ok({"items": [{"id": c.id, "buyer_id": c.buyer_id, "seller_id": c.seller_id, "is_bot_enabled": c.is_bot_enabled} for c in items]})
+    items = db.scalars(select(Conversation).where(Conversation.buyer_id == current_user.id)).all()
+    summaries = [_mask_conversation_summary(db, conversation, current_user.id) for conversation in items]
+    summaries.sort(key=lambda item: item["last_message_at"] or "", reverse=True)
+    return ok({"items": summaries})
 
 
 @router.get("/chat/conversations/{conversation_id}/messages")
@@ -170,7 +247,7 @@ def list_messages(conversation_id: int, db: Session = Depends(get_db), current_u
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
-    if not _ensure_conversation_member(conversation, current_user.id):
+    if not _ensure_buyer_conversation_member(conversation, current_user.id):
         fail(403, "FORBIDDEN", "Không có quyền truy cập")
     items = db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.id.asc())).all()
     return ok({"items": [_mask_message_sender(m) for m in items]})
@@ -181,11 +258,13 @@ def send_message(conversation_id: int, payload: MessageIn, db: Session = Depends
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
-    if not _ensure_conversation_member(conversation, current_user.id):
+    if not _ensure_buyer_conversation_member(conversation, current_user.id):
         fail(403, "FORBIDDEN", "Không có quyền truy cập")
     m = Message(conversation_id=conversation_id, sender_id=current_user.id, content=payload.content, is_bot=False, is_read=False)
     db.add(m)
     db.commit()
+    payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": m.id, "shop_id": conversation.shop_id, "sender_id": current_user.id}
+    chat_events.publish_from_thread(conversation.seller_id, payload)
     return ok({"id": m.id})
 
 
@@ -194,7 +273,7 @@ def read_conversation(conversation_id: int, db: Session = Depends(get_db), curre
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
-    if not _ensure_conversation_member(conversation, current_user.id):
+    if not _ensure_buyer_conversation_member(conversation, current_user.id):
         fail(403, "FORBIDDEN", "Không có quyền truy cập")
     items = db.scalars(select(Message).where(Message.conversation_id == conversation_id, Message.is_read.is_(False), Message.sender_id != current_user.id)).all()
     for m in items:
@@ -210,6 +289,7 @@ def get_product(id: int, db: Session = Depends(get_db)):
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
     # Buyer-oriented view: include images, shop info, category, attributes
     images = db.scalars(select(ProductImage).where(ProductImage.product_id == id)).all()
+    videos = db.scalars(select(ProductVideo).where(ProductVideo.product_id == id)).all()
     shop = db.get(Shop, product.shop_id)
     category = db.get(Category, product.category_id) if product.category_id else None
     reviews = db.scalars(select(Review).where(Review.product_id == id)).all()
@@ -222,8 +302,9 @@ def get_product(id: int, db: Session = Depends(get_db)):
         "stock": product.stock,
         "category": {"id": category.id, "name": category.name} if category else None,
         "attributes": product.attributes,
-        "images": [{"id": img.id, "url": img.url, "is_primary": img.is_primary} for img in images],
-        "shop": {"id": shop.id, "name": shop.name} if shop else None,
+        "images": [{"id": img.id, "url": url, "is_primary": img.is_primary, "variant": img.variant, "source_size": img.source_size} for img in images if (url := sanitize_image_url(img.url))],
+        "videos": [{"id": video.id, "title": video.title, "url": video.url, "source_user_id": video.source_user_id} for video in videos],
+        "shop": {"id": shop.id, "name": shop.name, "owner_id": shop.owner_id} if shop else None,
         "avg_rating": avg_rating,
         "review_count": len(reviews),
     })
@@ -289,4 +370,4 @@ def get_payment(order_id: int, db: Session = Depends(get_db), current_user: User
 
 @router.post("/reviews", status_code=201)
 def create_review(payload: ReviewIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return buyer_service.create_review(db, current_user, payload.product_id, payload.rating, payload.comment)
+    return buyer_service.create_review(db, current_user, payload.product_id, payload.rating, payload.comment, payload.title)

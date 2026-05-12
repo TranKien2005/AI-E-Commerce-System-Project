@@ -10,9 +10,9 @@ export default function CheckoutSuccessPage() {
         <CheckCircle2 size={48} strokeWidth={1.5} />
       </div>
 
-      <h1 className="text-4xl md:text-5xl font-light mb-4 text-center tracking-tight">Đặt hàng thành công!</h1>
+      <h1 className="text-4xl md:text-5xl font-light mb-4 text-center tracking-tight">Order placed successfully!</h1>
       <p className="text-muted-foreground text-lg font-light mb-12 text-center max-w-md">
-        Cảm ơn bạn đã tin tưởng Aeris. Đơn hàng <span className="font-medium text-foreground">#ORD-99234</span> đang được xử lý.
+        Thank you for shopping with Aeris. Order <span className="font-medium text-foreground">#ORD-99234</span> is being processed.
       </p>
 
       <div className="w-full max-w-xl bg-secondary/30 rounded-[2.5rem] p-8 md:p-10 border border-border/50 mb-12 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -21,8 +21,8 @@ export default function CheckoutSuccessPage() {
             <Calendar size={20} className="text-primary" />
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Ngày dự kiến giao</p>
-            <p className="text-sm font-medium">10 tháng 05, 2026</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Estimated delivery</p>
+            <p className="text-sm font-medium">May 10, 2026</p>
           </div>
         </div>
 
@@ -31,8 +31,8 @@ export default function CheckoutSuccessPage() {
             <Package size={20} className="text-primary" />
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Phương thức giao</p>
-            <p className="text-sm font-medium">Giao hàng nhanh (1-2 ngày)</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Delivery method</p>
+            <p className="text-sm font-medium">Express delivery (1-2 days)</p>
           </div>
         </div>
 
@@ -41,8 +41,8 @@ export default function CheckoutSuccessPage() {
             <MapPin size={20} className="text-primary" />
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Địa chỉ nhận hàng</p>
-            <p className="text-sm font-medium">234 Đường Bưởi, Phường Vĩnh Phúc, Quận Ba Đình, Hà Nội</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Shipping address</p>
+            <p className="text-sm font-medium">234 Market Street, Hanoi</p>
           </div>
         </div>
       </div>
@@ -52,13 +52,13 @@ export default function CheckoutSuccessPage() {
           href="/profile" 
           className="flex-1 h-14 rounded-full border border-border flex items-center justify-center text-sm font-medium hover:bg-secondary transition-colors"
         >
-          Theo dõi đơn hàng
+          Track order
         </Link>
         <Link 
           href="/" 
           className="flex-1 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium hover:opacity-90 transition-opacity gap-2 group"
         >
-          Tiếp tục mua sắm
+          Continue shopping
           <ArrowRight size={18} strokeWidth={1.5} className="group-hover:translate-x-1 transition-transform" />
         </Link>
       </div>

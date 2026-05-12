@@ -1,76 +1,46 @@
-"use client";
-
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BadgePercent, Package, Sparkles } from "lucide-react";
+import { getCategories } from "@/lib/storefront-api";
 
-export default function CollectionsPage() {
+export default async function CollectionsPage() {
+  const categoriesResult = await Promise.allSettled([getCategories()]);
+  const categories = categoriesResult[0].status === "fulfilled" ? categoriesResult[0].value.items.filter((category) => category.parent_id === null).slice(0, 6) : [];
+
   const collections = [
-    {
-      id: 1,
-      title: "Essential Series",
-      description: "Sự cân bằng hoàn hảo giữa hiệu năng và thiết kế tối giản cho không gian sống hiện đại.",
-      image: "https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=800&q=80",
-      color: "bg-[#F5F5F7]",
-    },
-    {
-      id: 2,
-      title: "Pro Edition",
-      description: "Công nghệ lọc tiên tiến nhất dành cho những không gian rộng và yêu cầu khắt khe.",
-      image: "https://images.unsplash.com/photo-1520691522060-22944b02d6ad?w=800&q=80",
-      color: "bg-[#E8E8EC]",
-    },
-    {
-      id: 3,
-      title: "Limited White",
-      description: "Phiên bản giới hạn với chất liệu gốm cao cấp và sắc trắng tinh khiết nhất.",
-      image: "https://images.unsplash.com/photo-1544027993-37dbfe43562a?w=800&q=80",
-      color: "bg-white",
-    },
+    { icon: Sparkles, title: "Recommended Picks", description: "A rotating selection of marketplace products from active shops.", href: "/products" },
+    { icon: BadgePercent, title: "Best Price", description: "Browse lower-priced products first using the catalog sort filter.", href: "/products?sort=price_asc" },
+    { icon: Package, title: "New Arrivals", description: "Recently imported products from the backend catalog.", href: "/products?sort=newest" },
   ];
 
   return (
-    <div className="container mx-auto px-6 py-12 md:py-20">
-      <div className="max-w-2xl mb-16">
-        <h1 className="text-4xl md:text-5xl font-light mb-6 tracking-tight">Bộ sưu tập</h1>
-        <p className="text-lg text-muted-foreground font-light leading-relaxed">
-          Khám phá những dòng sản phẩm được thiết kế tỉ mỉ, kết hợp giữa công nghệ tiên tiến và thẩm mỹ tối giản đặc trưng của Aeris.
-        </p>
+    <div className="premium-section py-12 pb-24">
+      <div className="mb-10 max-w-3xl">
+        <p className="eyebrow mb-4">Collections</p>
+        <h1 className="text-5xl font-light text-slate-950 md:text-7xl">Shop by marketplace collections</h1>
+        <p className="mt-5 text-lg leading-8 text-slate-500">Use curated entry points and taxonomy categories to move through the catalog faster.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-12">
+      <div className="grid gap-5 md:grid-cols-3">
         {collections.map((collection) => (
-          <div 
-            key={collection.id}
-            className={`group relative h-[400 md:h-[500px] rounded-3xl overflow-hidden border border-border/50 flex flex-col md:flex-row items-center ${collection.color}`}
-          >
-            <div className="flex-1 p-8 md:p-16 z-10">
-              <h2 className="text-3xl font-light mb-4 group-hover:translate-x-2 transition-transform duration-500">
-                {collection.title}
-              </h2>
-              <p className="text-muted-foreground mb-8 max-w-sm font-light">
-                {collection.description}
-              </p>
-              <Link 
-                href="/products" 
-                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:gap-4 transition-all"
-              >
-                Khám phá ngay
-                <ArrowRight size={18} strokeWidth={1.5} />
-              </Link>
-            </div>
-            
-            <div className="flex-1 relative w-full h-full min-h-[300px] md:min-h-0 overflow-hidden">
-              <Image 
-                src={collection.image} 
-                alt={collection.title}
-                fill
-                className="object-cover md:object-contain p-8 md:p-12 group-hover:scale-105 transition-transform duration-700"
-              />
-            </div>
-          </div>
+          <Link key={collection.title} href={collection.href} className="premium-panel p-8 transition hover:-translate-y-1">
+            <collection.icon className="mb-6 text-orange-500" size={30} />
+            <h2 className="text-2xl font-light text-slate-950">{collection.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-500">{collection.description}</p>
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-orange-600">Explore <ArrowRight size={16} /></span>
+          </Link>
         ))}
       </div>
+
+      <section className="mt-12">
+        <h2 className="mb-5 text-3xl font-light text-slate-950">Top categories</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((category) => (
+            <Link key={category.id} href={`/products?category_id=${category.id}&mode=keyword`} className="rounded-[1.5rem] bg-white p-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:-translate-y-1 hover:text-slate-950">
+              {category.name}
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
