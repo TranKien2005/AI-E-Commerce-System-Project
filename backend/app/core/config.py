@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/ecommerce"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     SECRET_KEY: str = "change-me-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -17,6 +18,13 @@ class Settings(BaseSettings):
     AI_SEARCH_BASE_URL: str = ""
     AI_SEARCH_API_KEY: str = ""
     AI_SEARCH_TIMEOUT_SECONDS: int = 5
+
+    TRACING_ENABLED: bool = True
+    OTEL_SERVICE_NAME: str = "ai-ecommerce-backend"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 5
+    CIRCUIT_BREAKER_RECOVERY_SECONDS: int = 60
 
     # Email Settings
     # EMAIL_BACKEND: "smtp" (MailHog/Local) or "resend" (Production API)

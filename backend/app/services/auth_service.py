@@ -1,11 +1,12 @@
 import logging
 import random
-import time
 from datetime import datetime, timezone
 
+import redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.responses import fail, ok
 from app.core.security import create_token, decode_token, get_password_hash, verify_password
 from app.models.entities import User
@@ -13,33 +14,44 @@ from app.services.email_service import send_otp_email
 
 logger = logging.getLogger(__name__)
 
-revoked_refresh_tokens: set[str] = set()
-
-# In-memory OTP store: {email: {"code": "123456", "expires": timestamp}}
-# In production, use Redis instead
-_otp_store: dict[str, dict] = {}
 OTP_EXPIRE_SECONDS = 300  # 5 minutes
+REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 24 * 14 * 60  # 14 days in seconds
+
+# Redis client for OTP and revoked tokens
+_redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
 
-def _store_otp(email: str, code: str):
-    _otp_store[email] = {"code": code, "expires": time.time() + OTP_EXPIRE_SECONDS}
+def _otp_key(email: str) -> str:
+    return f"auth:otp:{email}"
+
+
+def _revoked_refresh_key(refresh_token: str) -> str:
+    return f"auth:revoked_refresh:{refresh_token}"
+
+
+def _store_otp(email: str, code: str) -> None:
+    _redis_client.setex(_otp_key(email), OTP_EXPIRE_SECONDS, code)
 
 
 def _verify_otp(email: str, code: str) -> bool:
-    entry = _otp_store.get(email)
-    if not entry:
+    key = _otp_key(email)
+    stored_code = _redis_client.get(key)
+    if stored_code != code:
         return False
-    if time.time() > entry["expires"]:
-        del _otp_store[email]
-        return False
-    if entry["code"] != code:
-        return False
-    del _otp_store[email]  # OTP is single-use
+    _redis_client.delete(key)
     return True
+
+
+def _is_refresh_token_revoked(refresh_token: str) -> bool:
+    return _redis_client.exists(_revoked_refresh_key(refresh_token)) == 1
+
+
+def _revoke_refresh_token(refresh_token: str) -> None:
+    _redis_client.setex(_revoked_refresh_key(refresh_token), REFRESH_TOKEN_EXPIRE_SECONDS, "1")
 
 
 def valid_password(password: str) -> bool:
@@ -110,7 +122,7 @@ def login(db: Session, email: str, password: str):
 
 
 def refresh(refresh_token: str):
-    if refresh_token in revoked_refresh_tokens:
+    if _is_refresh_token_revoked(refresh_token):
         fail(401, "UNAUTHORIZED", "Refresh token đã bị thu hồi")
     try:
         token = decode_token(refresh_token)
@@ -125,7 +137,7 @@ def refresh(refresh_token: str):
 def logout(refresh_token: str):
     if not refresh_token:
         fail(422, "VALIDATION_ERROR", "Thiếu refresh_token")
-    revoked_refresh_tokens.add(refresh_token)
+    _revoke_refresh_token(refresh_token)
     return ok({})
 
 
