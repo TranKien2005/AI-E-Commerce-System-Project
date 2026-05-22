@@ -4,11 +4,13 @@ import smtplib
 import requests
 from email.mime.text import MIMEText
 
+from app.core.circuit_breaker import circuit_breaker
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
+@circuit_breaker("email.smtp", trip_on_false=True)
 def send_email_smtp(to: str, subject: str, body: str) -> bool:
     """Send an email via standard SMTP (MailHog)."""
     try:
@@ -29,6 +31,7 @@ def send_email_smtp(to: str, subject: str, body: str) -> bool:
         return False
 
 
+@circuit_breaker("email.resend", trip_on_false=True)
 def send_email_resend(to: str, subject: str, body: str) -> bool:
     """Send an email via Resend API."""
     if not settings.RESEND_API_KEY:

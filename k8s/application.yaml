@@ -26,7 +26,8 @@ spec:
     spec:
       containers:
       - name: backend
-        image: your-registry/ecommerce-backend:latest
+        image: ai-ecommerce-backend:test
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
         env:
@@ -107,7 +108,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: your-registry/ecommerce-frontend:latest
+        image: ai-ecommerce-frontend:test
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
         resources:
