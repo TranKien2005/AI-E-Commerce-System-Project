@@ -34,7 +34,7 @@ Local services:
 
 | Service | URL/Port |
 |---|---|
-| PostgreSQL | `localhost:5432/ecommerce` |
+| PostgreSQL | `localhost:5433/ecommerce` |
 | Redis | `localhost:6379` |
 | MailHog SMTP | `localhost:1025` |
 | MailHog UI | `http://localhost:8025` |
@@ -77,7 +77,79 @@ npm run dev:storefront
 npm run dev:admin
 ```
 
-## 4. Current marketplace behavior
+## 4. Docker Desktop Kubernetes demo
+
+This local Kubernetes setup runs backend, PostgreSQL, Redis, MailHog, Jaeger, Prometheus, and Grafana inside Docker Desktop Kubernetes.
+
+Prerequisite: enable Kubernetes in Docker Desktop, then verify:
+
+```powershell
+kubectl config use-context docker-desktop
+kubectl get nodes
+```
+
+Start or redeploy the app stack:
+
+```powershell
+cd backend
+.\k8s-up.ps1
+```
+
+The script builds the backend image, loads it into the Docker Desktop Kubernetes container runtime, applies the app and monitoring manifests, waits for dependencies, runs Alembic migrations, restarts the backend, and opens demo port-forwards.
+
+Run seed data inside Kubernetes:
+
+```powershell
+.\k8s-seed.ps1
+```
+
+Reset and seed again:
+
+```powershell
+.\k8s-seed.ps1 -SeedArgs @("--reset", "--yes")
+```
+
+The same `k8s-up.ps1` command opens demo ports automatically:
+
+| Service | Local URL | Notes |
+|---|---|---|
+| Backend API | `http://localhost:8000` | OpenAPI at `/docs`, metrics at `/metrics` |
+| MailHog UI | `http://localhost:8025` | View OTP/order emails sent by backend |
+| Jaeger UI | `http://localhost:16686` | Select service `ecommerce-backend` and find traces |
+| Prometheus UI | `http://localhost:9090` | Scrapes `ecommerce-backend:80/metrics` |
+| Grafana UI | `http://localhost:3002` | Login `admin` / `Admin@123`; Prometheus and Loki datasources are preconfigured |
+
+Temporarily stop the Kubernetes app and monitoring stack while keeping data/config:
+
+```powershell
+.\k8s-down.ps1
+```
+
+Remove Kubernetes workloads/config, including monitoring, but keep PostgreSQL data:
+
+```powershell
+.\k8s-down.ps1 -Remove
+```
+
+Remove everything including PostgreSQL data:
+
+```powershell
+.\k8s-down.ps1 -Remove -RemoveData
+```
+
+## 5. Observability and resilience
+
+The backend exposes and emits:
+
+| Capability | How to view/test |
+|---|---|
+| Logs | Grafana Explore with datasource `Loki`, query `{app="ecommerce-backend"}`; terminal fallback: `kubectl logs deployment/ecommerce-backend` |
+| Metrics | `http://localhost:8000/metrics`; Prometheus scrapes the same endpoint in Kubernetes |
+| Tracing | Jaeger UI at `http://localhost:16686`, service `ecommerce-backend` |
+| Rate limit | Auth endpoints use app-level limits, configurable by `RATE_LIMIT_*` env vars |
+| Circuit breaker | Resend email calls are protected by `pybreaker`, configurable by `CIRCUIT_BREAKER_*` env vars |
+
+## 6. Current marketplace behavior
 
 ### Search
 
@@ -159,7 +231,7 @@ Chat events:
 | `chat_conversation` | New conversation created |
 | `chat_message` | New message in a conversation |
 
-## 5. Database architecture summary
+## 7. Database architecture summary
 
 | Group | Tables | Notes |
 |---|---|---|
@@ -177,7 +249,7 @@ Important current limitation:
 - If a cart contains products from multiple shops, seller pages filter visible items but order status is still shared.
 - Recommended future architecture: split checkout into one order per shop, or add a first-class `shipments` / `seller_orders` table.
 
-## 6. Quality commands
+## 8. Quality commands
 
 Backend:
 
@@ -194,7 +266,7 @@ npm run lint
 npm run build
 ```
 
-## 7. Security/local notes
+## 9. Security/local notes
 
 - Do not commit `.env` or secrets.
 - `SECRET_KEY` must be changed for production.

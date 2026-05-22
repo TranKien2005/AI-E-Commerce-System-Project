@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository shape
 
-This repository has two active apps:
-- `backend/`: FastAPI + SQLAlchemy + Alembic monolith for auth, buyer, seller, and admin flows.
-- `frontend/`: Next.js + React + TypeScript client (App Router, Tailwind CSS v4, Shadcn UI) that covers the public shell plus user flows.
+This repository has two active areas:
+- `backend/`: FastAPI + SQLAlchemy + Alembic monolith for auth, buyer, seller, admin, search, and chat flows.
+- `frontend/`: Next.js + React + TypeScript workspace containing two App Router apps: `storefront/` and `admin/`.
 
 ## Development commands
 
@@ -28,14 +28,19 @@ Run these from `backend/`.
 Run these from `frontend/`.
 
 - Install dependencies: `npm install`
-- Start dev server: `npm run dev`
-- Build: `npm run build`
-- Lint: `npm run lint`
-- Start production server after a build: `npm run start`
+- Start storefront dev server: `npm run dev` or `npm run dev:storefront` (port 3000)
+- Start admin dev server: `npm run dev:admin` (port 3001)
+- Build both apps: `npm run build`
+- Build one app: `npm run build:storefront` or `npm run build:admin`
+- Lint both apps: `npm run lint`
+- Lint one app: `npm run lint:storefront` or `npm run lint:admin`
+- Run Playwright tests: `npm run test:e2e`
+- Run Playwright headed: `npm run test:e2e:headed`
+- Start production server after a build: `npm run start:storefront` or `npm run start:admin`
 
 ## Local environment assumptions
 
-- Backend defaults to PostgreSQL at `localhost:5432/ecommerce` via `DATABASE_URL` in `app/core/config.py`.
+- Backend defaults to PostgreSQL at `localhost:5433/ecommerce` via `DATABASE_URL` in `app/core/config.py`; Docker maps container port 5432 to host port 5433.
 - `backend/docker-compose.yml` starts PostgreSQL, Redis, and MailHog.
 - MailHog is exposed at `http://localhost:8025`; the register flow expects OTP emails to appear there.
 - Frontend calls the backend at `http://localhost:8000/api/v1`.
@@ -46,7 +51,7 @@ Run these from `frontend/`.
 The backend is organized as a thin-router/service-layer application:
 
 - `app/main.py` creates the FastAPI app, installs CORS, mounts the v1 router, and registers custom exception handlers.
-- `app/api/v1/router.py` composes the API from four role/domain routers: `auth`, `buyer`, `seller`, and `admin`.
+- `app/api/v1/router.py` composes the API from role/domain routers such as `auth`, `buyer`, `seller`, `admin`, and chat/websocket support.
 - Route handlers are intended to stay thin; most business logic lives in `app/services/*.py`.
 - Database access is synchronous SQLAlchemy ORM through `app/db/session.py`.
 - ORM models are centralized in `app/models/entities.py`; Alembic uses `app.db.base.Base.metadata` for autogeneration.
@@ -105,17 +110,18 @@ Prefer keeping tests at the HTTP/API level unless there is a strong reason to un
 
 ## Frontend architecture
 
-The frontend is a Next.js application using Next.js 16, React 19, the App Router (`app/` directory), Tailwind CSS v4, and Shadcn UI components.
+The frontend uses Next.js 16, React 19, the App Router (`app/` directory), Tailwind CSS v4, and Shadcn UI components. The root `frontend/package.json` runs app-specific commands against `storefront/` and `admin/`.
 
 `frontend/AGENTS.md` notes that this Next.js version has breaking changes from older training data; read the relevant guide in `node_modules/next/dist/docs/` before changing Next.js APIs or conventions.
 
-- `src/app/` contains all the page routes (e.g., `page.tsx`, `products/page.tsx`).
-- `src/components/` contains reusable UI components and Shadcn UI components (`src/components/ui/`).
+- `storefront/src/app/` contains buyer/seller/public routes including product browsing, cart, checkout, auth, seller flows, search, chat, notifications, and reports.
+- `admin/src/app/` contains the admin console and login routes.
+- App-local `src/components/` folders contain reusable UI components and Shadcn UI components.
 - Routing is handled via Next.js App Router and `<Link>` components with smooth transitions.
 - The design system uses a monochromatic cool-white palette with an Apple Store / Dyson style premium aesthetic.
 - Glassmorphism is heavily used (e.g., `backdrop-blur-xl bg-white/70`).
 
-Important consequence: frontend API work should be structured carefully considering Next.js Server vs Client components. Use `next/image` for optimized image delivery.
+Important consequence: frontend API work should be structured carefully considering Next.js Server vs Client components, and changes may need to be applied separately to storefront and admin. Use `next/image` for optimized image delivery.
 
 ## Cross-cutting behaviors to remember
 

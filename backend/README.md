@@ -56,7 +56,65 @@ OpenAPI:
 http://localhost:8000/docs
 ```
 
-## 4. Response contract
+## 4. Docker Desktop Kubernetes demo
+
+Enable Kubernetes in Docker Desktop, then run the full local stack from `backend/`:
+
+```powershell
+.\k8s-up.ps1
+```
+
+This single command builds the backend image, loads it into Docker Desktop Kubernetes, runs PostgreSQL/Redis/MailHog/Jaeger/Prometheus/Grafana, applies migrations, restarts the backend, and opens demo port-forwards.
+
+Demo URLs:
+
+| Service | URL | Notes |
+|---|---|---|
+| Backend API | `http://localhost:8000` | OpenAPI at `/docs`, metrics at `/metrics` |
+| MailHog UI | `http://localhost:8025` | View local OTP/order emails |
+| Jaeger UI | `http://localhost:16686` | Service name `ecommerce-backend` |
+| Prometheus UI | `http://localhost:9090` | Scrapes backend `/metrics` |
+| Grafana UI | `http://localhost:3002` | Login `admin` / `Admin@123`; use Prometheus for metrics and Loki for logs |
+
+Seed inside Kubernetes:
+
+```powershell
+.\k8s-seed.ps1
+```
+
+Reset and seed again:
+
+```powershell
+.\k8s-seed.ps1 -SeedArgs @("--reset", "--yes")
+```
+
+Seed accounts:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@example.com` | `Admin@123` |
+| Buyer | `buyer@example.com` | `Buyer@123` |
+| Seller | `seed-seller-1@example.com` ... `seed-seller-5@example.com` | `Seed@123` |
+
+Temporarily stop the stack without deleting data/config:
+
+```powershell
+.\k8s-down.ps1
+```
+
+Remove workloads/config but keep PostgreSQL data:
+
+```powershell
+.\k8s-down.ps1 -Remove
+```
+
+Remove everything including PostgreSQL data:
+
+```powershell
+.\k8s-down.ps1 -Remove -RemoveData
+```
+
+## 5. Response contract
 
 All HTTP APIs use envelope responses.
 
@@ -85,7 +143,7 @@ Failure:
 
 `204 No Content` endpoints return no body.
 
-## 5. Routers
+## 6. Routers
 
 | Router | Prefix | File | Purpose |
 |---|---|---|---|
@@ -95,7 +153,7 @@ Failure:
 | Admin | `/admin` | `app/api/v1/admin.py` | Metrics, users, seller requests, reports, audit/system logs |
 | WebSocket | `/chat/events`, `/account/events` | `app/api/v1/chat_ws.py` | Realtime chat/account events |
 
-## 6. Database model reference
+## 7. Database model reference
 
 ### `users`
 
@@ -246,7 +304,7 @@ Buyer chat and seller/shop chat use separate endpoints and UI contexts.
 | `is_bot` | bool | Bot message marker |
 | `is_read` | bool | Read marker |
 
-## 7. HTTP endpoint reference
+## 8. HTTP endpoint reference
 
 ### Auth
 
