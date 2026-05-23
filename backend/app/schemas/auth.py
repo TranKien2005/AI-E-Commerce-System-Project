@@ -12,6 +12,10 @@ class VerifyOtpIn(BaseModel):
     otp: str
 
 
+class ResendVerificationOtpIn(BaseModel):
+    email: EmailStr
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str

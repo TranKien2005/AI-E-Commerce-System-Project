@@ -2,8 +2,10 @@
 import logging
 import smtplib
 import requests
+import pybreaker
 from email.mime.text import MIMEText
 
+from app.core.circuit_breaker import email_circuit_breaker
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -36,7 +38,8 @@ def send_email_resend(to: str, subject: str, body: str) -> bool:
         return False
 
     try:
-        response = requests.post(
+        response = email_circuit_breaker.call(
+            requests.post,
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {settings.RESEND_API_KEY}",
@@ -48,7 +51,7 @@ def send_email_resend(to: str, subject: str, body: str) -> bool:
                 "subject": subject,
                 "html": body,
             },
-            timeout=10
+            timeout=10,
         )
         
         if response.status_code in [200, 201]:
@@ -58,6 +61,9 @@ def send_email_resend(to: str, subject: str, body: str) -> bool:
             logger.warning(f"Resend API Error: {response.status_code} - {response.text}")
             return False
             
+    except pybreaker.CircuitBreakerError as e:
+        logger.warning(f"Resend API circuit breaker is open for {to}: {e}")
+        return False
     except Exception as e:
         logger.warning(f"Failed to send Resend API email to {to}: {e}")
         return False

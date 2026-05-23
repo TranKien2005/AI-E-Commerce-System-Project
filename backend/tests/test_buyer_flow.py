@@ -109,7 +109,9 @@ class TestPayment:
 
 class TestReviews:
     def test_invalid_rating(self, client):
-        r = client.post("/api/v1/reviews", json={"product_id": 1, "rating": 10, "comment": "bad"}, headers=bh(client))
+        products = client.get("/api/v1/products").json()["data"]["items"]
+        if not products: pytest.skip("No products")
+        r = client.post("/api/v1/reviews", json={"product_id": products[0]["id"], "rating": 10, "comment": "bad"}, headers=bh(client))
         assert r.status_code == 422
 
     def test_review_no_purchase(self, client):

@@ -1,13 +1,15 @@
 import logging
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.core.responses import fail, ok
+from app.core.security import get_password_hash, verify_password
 from app.models.entities import CartItem, Category, Conversation, Message, Notification, Order, OrderItem, Payment, Product, ProductImage, Report, Review, SellerRequest, Shop, User
+from app.services.chat_events import account_events
 from app.services.email_service import send_email
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,25 @@ def update_me(db: Session, user: User, full_name: str):
     return ok({"id": user.id, "full_name": user.full_name})
 
 
+def change_password(db: Session, user: User, current_password: str, new_password: str):
+    if not verify_password(current_password, user.password):
+        fail(400, "BAD_REQUEST", "Current password is incorrect")
+    if len(new_password) < 8:
+        fail(422, "VALIDATION_ERROR", "New password must be at least 8 characters")
+    user.password = get_password_hash(new_password)
+    db.commit()
+    return ok({})
+
+
+def delete_account(db: Session, user: User, current_password: str):
+    if not verify_password(current_password, user.password):
+        fail(400, "BAD_REQUEST", "Current password is incorrect")
+    user.deleted_at = datetime.now(timezone.utc)
+    user.status = "deleted"
+    db.commit()
+    return ok({})
+
+
 def add_cart(db: Session, user: User, product_id: int, quantity: int):
     product = db.get(Product, product_id)
     if not product or product.deleted_at is not None:
@@ -46,6 +67,7 @@ def add_cart(db: Session, user: User, product_id: int, quantity: int):
     else:
         db.add(CartItem(user_id=user.id, product_id=product_id, quantity=quantity))
     db.commit()
+    account_events.publish_from_thread(user.id, {"type": "cart_updated"})
     return ok({})
 
 
@@ -62,8 +84,14 @@ def create_order(db: Session, user: User, shipping_address: str):
         if p.stock < c.quantity:
             fail(400, "BAD_REQUEST", f"Sản phẩm '{p.name}' không đủ tồn kho (còn {p.stock}, cần {c.quantity})")
 
+    seller_ids = sorted({
+        db.scalar(select(Shop.owner_id).join(Product, Product.shop_id == Shop.id).where(Product.id == c.product_id))
+        for c in cart_items
+    })
+    seller_ids = [seller_id for seller_id in seller_ids if seller_id is not None]
+
     total = 0.0
-    order = Order(user_id=user.id, total_price=0, shipping_address=shipping_address)
+    order = Order(user_id=user.id, total_price=0, shipping_address=shipping_address, status="pending", shipping_status="preparing")
     db.add(order)
     db.flush()
     for c in cart_items:
@@ -77,9 +105,15 @@ def create_order(db: Session, user: User, shipping_address: str):
         db.delete(c)
     order.total_price = total
     db.add(Notification(user_id=user.id, content=f"Đơn hàng #{order.id} đã được tạo thành công", type="order", channel="email"))
+    for seller_id in seller_ids:
+        db.add(Notification(user_id=seller_id, content=f"Shop của bạn có đơn hàng mới #{order.id}", type="seller_order", channel="system"))
     db.commit()
+    account_events.publish_from_thread(user.id, {"type": "order_created", "order_id": order.id})
+    account_events.publish_from_thread(user.id, {"type": "cart_updated"})
+    for seller_id in seller_ids:
+        account_events.publish_from_thread(seller_id, {"type": "seller_order_created", "order_id": order.id})
     _send_email_after_commit(user.email, f"Đơn hàng #{order.id} đã được tạo", f"Đơn hàng <b>#{order.id}</b> đã được tạo thành công. Tổng: {total:,.0f}đ")
-    return ok({"order_id": order.id})
+    return ok({"order_id": order.id, "status": order.status, "shipping_status": order.shipping_status})
 
 
 def pay_order(db: Session, user: User, order_id: int, x_idempotency_key: str | None):
@@ -117,7 +151,7 @@ def pay_order(db: Session, user: User, order_id: int, x_idempotency_key: str | N
     return ok({"payment_id": payment.id, "status": payment.status})
 
 
-def create_review(db: Session, user: User, product_id: int, rating: int, comment: str):
+def create_review(db: Session, user: User, product_id: int, rating: int, comment: str, title: str = ""):
     product = db.get(Product, product_id)
     if not product:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
@@ -130,10 +164,17 @@ def create_review(db: Session, user: User, product_id: int, rating: int, comment
     item = db.scalar(select(OrderItem).where(OrderItem.order_id.in_(order_ids), OrderItem.product_id == product_id))
     if not item:
         fail(403, "FORBIDDEN", "Chỉ được đánh giá sản phẩm đã mua trong đơn delivered")
-    review = Review(user_id=user.id, product_id=product_id, rating=rating, comment=comment)
-    db.add(review)
+    review = db.scalar(select(Review).where(Review.user_id == user.id, Review.product_id == product_id))
+    if review:
+        review.rating = rating
+        review.title = title
+        review.comment = comment
+        review.verified_purchase = True
+    else:
+        review = Review(user_id=user.id, product_id=product_id, rating=rating, title=title, comment=comment, verified_purchase=True)
+        db.add(review)
     db.commit()
-    return ok({"id": review.id})
+    return ok({"id": review.id, "updated": bool(review)})
 
 
 def list_categories(db: Session):
@@ -142,24 +183,34 @@ def list_categories(db: Session):
 
 
 def get_cart(db: Session, user: User):
-    items = db.scalars(select(CartItem).where(CartItem.user_id == user.id)).all()
-    data = []
-    for item in items:
-        p = db.get(Product, item.product_id)
-        primary_img = db.scalar(
-            select(ProductImage).where(ProductImage.product_id == item.product_id, ProductImage.is_primary.is_(True))
-        ) if p else None
-        if not primary_img and p:
-            primary_img = db.scalar(select(ProductImage).where(ProductImage.product_id == item.product_id))
-        data.append({
+    rows = db.execute(
+        select(CartItem, Product)
+        .join(Product, Product.id == CartItem.product_id)
+        .where(CartItem.user_id == user.id)
+        .order_by(CartItem.id.desc())
+    ).all()
+    product_ids = [product.id for _, product in rows]
+    image_by_product: dict[int, str] = {}
+    if product_ids:
+        images = db.execute(
+            select(ProductImage.product_id, ProductImage.url)
+            .where(ProductImage.product_id.in_(product_ids))
+            .order_by(ProductImage.product_id.asc(), ProductImage.is_primary.desc(), ProductImage.id.asc())
+        ).all()
+        for product_id, url in images:
+            image_by_product.setdefault(product_id, url)
+    data = [
+        {
             "item_id": item.id,
-            "product_id": item.product_id,
+            "product_id": product.id,
             "quantity": item.quantity,
-            "name": p.name if p else None,
-            "price": float(p.price) if p else None,
-            "primary_image": primary_img.url if primary_img else None,
-            "stock": p.stock if p else 0,
-        })
+            "name": product.name,
+            "price": float(product.price),
+            "primary_image": image_by_product.get(product.id),
+            "stock": product.stock,
+        }
+        for item, product in rows
+    ]
     return ok({"items": data})
 
 
@@ -247,6 +298,7 @@ def cancel_order(db: Session, user: User, order_id: int):
             p.stock += oi.quantity
     db.add(Notification(user_id=user.id, content=f"Đơn hàng #{order_id} đã được hủy", type="order", channel="email"))
     db.commit()
+    account_events.publish_from_thread(user.id, {"type": "order_updated", "order_id": order.id})
     _send_email_after_commit(user.email, f"Đơn hàng #{order_id} đã hủy", f"Đơn hàng <b>#{order_id}</b> đã được hủy thành công.")
     return ok({})
 
@@ -278,6 +330,7 @@ def update_cart(db: Session, user: User, item_id: int, quantity: int):
         fail(400, "BAD_REQUEST", f"Sản phẩm không đủ tồn kho (còn {p.stock})")
     item.quantity = quantity
     db.commit()
+    account_events.publish_from_thread(user.id, {"type": "cart_updated"})
     return ok({})
 
 
@@ -287,6 +340,7 @@ def delete_cart(db: Session, user: User, item_id: int):
         fail(404, "NOT_FOUND", "Không tìm thấy item")
     db.delete(item)
     db.commit()
+    account_events.publish_from_thread(user.id, {"type": "cart_updated"})
 
 
 def my_seller_request(db: Session, user: User):
@@ -331,3 +385,12 @@ def mark_all_notifications_read(db: Session, user: User):
         n.is_read = True
     db.commit()
     return ok({"updated": len(items)})
+
+
+def delete_notification(db: Session, user: User, notification_id: int):
+    item = db.get(Notification, notification_id)
+    if not item or item.user_id != user.id:
+        fail(404, "NOT_FOUND", "Không tìm thấy thông báo")
+    db.delete(item)
+    db.commit()
+    account_events.publish_from_thread(user.id, {"type": "notification_deleted", "notification_id": notification_id})

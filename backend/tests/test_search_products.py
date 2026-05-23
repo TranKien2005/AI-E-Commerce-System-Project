@@ -66,6 +66,20 @@ class TestProductSearch:
         r = client.get("/api/v1/products", params={"sort": "newest"})
         assert r.status_code == 200
 
+    def test_sort_top_sales(self, client):
+        r = client.get("/api/v1/products", params={"sort": "top_sales"})
+        assert r.status_code == 200
+        items = r.json()["data"]["items"]
+        if len(items) >= 2:
+            assert items[0]["sold_count"] >= items[1]["sold_count"]
+
+    def test_min_rating_filter(self, client):
+        r = client.get("/api/v1/products", params={"min_rating": 4})
+        assert r.status_code == 200
+        for item in r.json()["data"]["items"]:
+            assert item["avg_rating"] is not None
+            assert item["avg_rating"] >= 4
+
     def test_pagination(self, client):
         r = client.get("/api/v1/products", params={"page": 1, "page_size": 1})
         m = r.json()["data"]["meta"]
@@ -77,11 +91,13 @@ class TestProductSearch:
         assert r.status_code == 200
         assert r.json()["data"]["items"] == []
 
-    def test_product_list_has_image_shop(self, client):
+    def test_product_list_has_image_shop_category(self, client):
         items = client.get("/api/v1/products").json()["data"]["items"]
         if items:
-            for k in ("primary_image", "shop_name", "shop_id"):
+            for k in ("primary_image", "shop_name", "shop_id", "category_id", "category", "avg_rating", "review_count", "sold_count"):
                 assert k in items[0]
+            if items[0]["category"]:
+                assert "id" in items[0]["category"] and "name" in items[0]["category"]
 
     def test_no_deleted_products(self, client):
         """Soft-deleted products should not appear."""

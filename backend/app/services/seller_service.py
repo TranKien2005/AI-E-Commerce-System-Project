@@ -5,7 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.responses import fail, ok
-from app.models.entities import ChatbotConfig, Notification, Order, OrderItem, Product, ProductImage, Shop, User
+from app.models.entities import Category, ChatbotConfig, Conversation, Message, Notification, Order, OrderItem, Product, ProductImage, Shop, User
+from app.services.chat_events import account_events, chat_events
 from app.services.email_service import send_email
 
 logger = logging.getLogger(__name__)
@@ -58,10 +59,16 @@ def update_shop(db: Session, user: User, name: str, description: str):
     return ok({"id": shop.id, "name": shop.name})
 
 
+def _ensure_category_exists(db: Session, category_id: int | None):
+    if category_id is not None and not db.get(Category, category_id):
+        fail(400, "BAD_REQUEST", "Danh mục không tồn tại")
+
+
 def create_product(db: Session, user: User, name: str, description: str, price: float, stock: int, category_id: int | None):
     shop = _get_owner_shop(db, user)
     if not shop:
         fail(400, "BAD_REQUEST", "Người bán chưa có cửa hàng")
+    _ensure_category_exists(db, category_id)
     p = Product(shop_id=shop.id, category_id=category_id, name=name, description=description, price=price, stock=stock)
     db.add(p)
     db.commit()
@@ -73,6 +80,7 @@ def update_product(db: Session, user: User, product_id: int, name: str, descript
     p = db.get(Product, product_id)
     if not p or not shop or p.shop_id != shop.id:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
+    _ensure_category_exists(db, category_id)
     p.name = name
     p.description = description
     p.price = price
@@ -92,29 +100,71 @@ def delete_product(db: Session, user: User, product_id: int):
     db.commit()
 
 
-def add_product_image(db: Session, user: User, product_id: int, url: str, is_primary: bool):
+def _ensure_product_owned_by_user(db: Session, user: User, product_id: int) -> Product:
     shop = _get_owner_shop(db, user)
-    p = db.get(Product, product_id)
-    if not p or not shop or p.shop_id != shop.id:
+    product = db.get(Product, product_id)
+    if not product or not shop or product.shop_id != shop.id:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
-    image = ProductImage(product_id=product_id, url=url, is_primary=is_primary)
+    return product
+
+
+def _promote_primary_image(db: Session, product_id: int):
+    remaining = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id).order_by(ProductImage.id.asc())).all()
+    if remaining and not any(image.is_primary for image in remaining):
+        remaining[0].is_primary = True
+
+
+def add_product_image(db: Session, user: User, product_id: int, url: str, is_primary: bool):
+    _ensure_product_owned_by_user(db, user, product_id)
+    existing = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id)).all()
+    should_be_primary = is_primary or not existing
+    if should_be_primary:
+        for image in existing:
+            image.is_primary = False
+    image = ProductImage(product_id=product_id, url=url, is_primary=should_be_primary)
     db.add(image)
     db.commit()
     return ok({"id": image.id})
 
 
-def delete_product_image(db: Session, image_id: int):
+def set_product_image_primary(db: Session, user: User, image_id: int, is_primary: bool):
     image = db.get(ProductImage, image_id)
     if not image:
         fail(404, "NOT_FOUND", "Không tìm thấy ảnh")
+    _ensure_product_owned_by_user(db, user, image.product_id)
+    if is_primary:
+        images = db.scalars(select(ProductImage).where(ProductImage.product_id == image.product_id)).all()
+        for item in images:
+            item.is_primary = item.id == image.id
+    else:
+        image.is_primary = False
+        db.flush()
+        _promote_primary_image(db, image.product_id)
+    db.commit()
+    return ok({"id": image.id, "is_primary": image.is_primary})
+
+
+def delete_product_image(db: Session, user: User, image_id: int):
+    image = db.get(ProductImage, image_id)
+    if not image:
+        fail(404, "NOT_FOUND", "Không tìm thấy ảnh")
+    product_id = image.product_id
+    was_primary = image.is_primary
+    _ensure_product_owned_by_user(db, user, product_id)
     db.delete(image)
+    db.flush()
+    if was_primary:
+        _promote_primary_image(db, product_id)
     db.commit()
 
 
-def _serialize_order_for_seller(db: Session, order: Order) -> dict:
-    """Serialize order with full management details for seller view."""
-    items = db.scalars(select(OrderItem).where(OrderItem.order_id == order.id)).all()
+def _serialize_order_for_seller(db: Session, order: Order, shop: Shop | None = None) -> dict:
+    item_stmt = select(OrderItem).where(OrderItem.order_id == order.id)
+    if shop:
+        item_stmt = item_stmt.join(Product, Product.id == OrderItem.product_id).where(Product.shop_id == shop.id)
+    items = db.scalars(item_stmt).all()
     buyer = db.get(User, order.user_id)
+    shop_total = sum(float(item.price) * item.quantity for item in items)
     return {
         "id": order.id,
         "user_id": order.user_id,
@@ -122,7 +172,7 @@ def _serialize_order_for_seller(db: Session, order: Order) -> dict:
         "buyer_email": buyer.email if buyer else None,
         "status": order.status,
         "payment_status": order.payment_status,
-        "total_price": float(order.total_price),
+        "total_price": shop_total if shop else float(order.total_price),
         "shipping_address": order.shipping_address,
         "shipping_status": order.shipping_status,
         "shipping_note": order.shipping_note,
@@ -153,7 +203,7 @@ def list_orders(db: Session, user: User, page: int, page_size: int):
     for oid in page_ids:
         o = db.get(Order, oid)
         if o:
-            rows.append(_serialize_order_for_seller(db, o))
+            rows.append(_serialize_order_for_seller(db, o, shop))
     return ok({"items": rows, "meta": {"page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size if page_size else 1}})
 
 
@@ -163,7 +213,7 @@ def get_order(db: Session, user: User, order_id: int):
     if not order:
         fail(404, "NOT_FOUND", "Không tìm thấy đơn hàng")
     _ensure_order_owned_by_shop(db, shop, order.id)
-    return ok(_serialize_order_for_seller(db, order))
+    return ok(_serialize_order_for_seller(db, order, shop))
 
 
 def update_order_status(db: Session, user: User, order_id: int, status: str):
@@ -184,6 +234,7 @@ def update_order_status(db: Session, user: User, order_id: int, status: str):
     order.status = status
     db.add(Notification(user_id=order.user_id, content=f"Đơn hàng #{order.id} đã chuyển sang trạng thái: {status}", type="order", channel="email"))
     db.commit()
+    account_events.publish_from_thread(order.user_id, {"type": "order_updated", "order_id": order.id})
     buyer = db.get(User, order.user_id)
     if buyer:
         _send_email_after_commit(buyer.email, f"Đơn hàng #{order.id} - Cập nhật trạng thái", f"Đơn hàng <b>#{order.id}</b> đã chuyển sang: <b>{status}</b>")
@@ -198,7 +249,9 @@ def update_shipping(db: Session, user: User, order_id: int, shipping_status: str
     _ensure_shipping_updatable_by_shop(db, shop, order.id)
     order.shipping_status = shipping_status
     order.shipping_note = shipping_note
+    db.add(Notification(user_id=order.user_id, content=f"Vận chuyển đơn #{order.id} đã cập nhật: {shipping_status}", type="shipping", channel="system"))
     db.commit()
+    account_events.publish_from_thread(order.user_id, {"type": "order_updated", "order_id": order.id})
     return ok({})
 
 
@@ -312,6 +365,68 @@ def list_products(db: Session, user: User, page: int, page_size: int):
         "items": [_serialize_product_for_seller(db, p) for p in page_items],
         "meta": {"page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size if page_size else 1},
     })
+
+
+def _serialize_seller_conversation(db: Session, conversation: Conversation) -> dict:
+    buyer = db.get(User, conversation.buyer_id)
+    shop = db.get(Shop, conversation.shop_id) if conversation.shop_id else None
+    last_message = db.scalar(select(Message).where(Message.conversation_id == conversation.id).order_by(Message.id.desc()))
+    unread = db.scalars(select(Message).where(Message.conversation_id == conversation.id, Message.is_read.is_(False), Message.sender_id != conversation.seller_id)).all()
+    return {
+        "id": conversation.id,
+        "buyer_id": conversation.buyer_id,
+        "seller_id": conversation.seller_id,
+        "seller_name": shop.name if shop else "Shop",
+        "shop_id": shop.id if shop else None,
+        "shop_name": shop.name if shop else "Shop",
+        "buyer_name": buyer.full_name if buyer else "Buyer",
+        "is_bot_enabled": conversation.is_bot_enabled,
+        "last_message": last_message.content if last_message else "",
+        "last_message_at": last_message.created_at.isoformat() if last_message and last_message.created_at else None,
+        "unread_count": len(unread),
+    }
+
+
+def list_chat_conversations(db: Session, user: User):
+    shop = _get_owner_shop(db, user)
+    if not shop:
+        return ok({"items": []})
+    items = db.scalars(select(Conversation).where(Conversation.shop_id == shop.id, Conversation.seller_id == user.id)).all()
+    summaries = [_serialize_seller_conversation(db, item) for item in items]
+    summaries.sort(key=lambda item: item["last_message_at"] or "", reverse=True)
+    return ok({"items": summaries})
+
+
+def _ensure_seller_conversation(db: Session, user: User, conversation_id: int) -> Conversation:
+    shop = _get_owner_shop(db, user)
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation or not shop or conversation.shop_id != shop.id or conversation.seller_id != user.id:
+        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+    return conversation
+
+
+def list_chat_messages(db: Session, user: User, conversation_id: int):
+    _ensure_seller_conversation(db, user, conversation_id)
+    items = db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.id.asc())).all()
+    return ok({"items": [{"id": m.id, "conversation_id": m.conversation_id, "sender_id": m.sender_id, "content": m.content, "is_bot": m.is_bot, "is_read": m.is_read, "created_at": m.created_at.isoformat() if m.created_at else None} for m in items]})
+
+
+def send_chat_message(db: Session, user: User, conversation_id: int, content: str):
+    conversation = _ensure_seller_conversation(db, user, conversation_id)
+    message = Message(conversation_id=conversation_id, sender_id=user.id, content=content, is_bot=False, is_read=False)
+    db.add(message)
+    db.commit()
+    chat_events.publish_from_thread(conversation.buyer_id, {"type": "chat_message", "conversation_id": conversation.id, "message_id": message.id, "shop_id": conversation.shop_id, "sender_id": user.id})
+    return ok({"id": message.id})
+
+
+def read_chat_conversation(db: Session, user: User, conversation_id: int):
+    conversation = _ensure_seller_conversation(db, user, conversation_id)
+    items = db.scalars(select(Message).where(Message.conversation_id == conversation.id, Message.is_read.is_(False), Message.sender_id != user.id)).all()
+    for message in items:
+        message.is_read = True
+    db.commit()
+    return ok({"updated": len(items)})
 
 
 def get_chatbot_config(db: Session, user: User):

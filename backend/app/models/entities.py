@@ -70,6 +70,18 @@ class ProductImage(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    variant: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    source_size: Mapped[str] = mapped_column(String(20), default="", nullable=False)
+
+
+class ProductVideo(Base):
+    __tablename__ = "product_videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_user_id: Mapped[str] = mapped_column(String(255), default="", nullable=False)
 
 
 class CartItem(Base, TimestampMixin):
@@ -125,6 +137,11 @@ class Review(Base, TimestampMixin):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     comment: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    title: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    verified_purchase: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    helpful_votes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    source_user_id: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    source_review_id: Mapped[str] = mapped_column(String(64), default="", nullable=False, index=True)
 
 
 class Conversation(Base, TimestampMixin):
@@ -133,6 +150,7 @@ class Conversation(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    shop_id: Mapped[int | None] = mapped_column(ForeignKey("shops.id"), nullable=True)
     is_bot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 

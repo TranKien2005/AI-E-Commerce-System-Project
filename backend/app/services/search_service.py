@@ -1,7 +1,28 @@
-from sqlalchemy import select
+import re
+
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.entities import Product, ProductImage, Shop
+from app.models.entities import Category, OrderItem, Product, ProductImage, Review, Shop
+
+
+_IMAGE_URL_RE = re.compile(r"https?://\S+")
+
+
+def sanitize_image_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = _IMAGE_URL_RE.search(value.strip())
+    return match.group(0) if match else None
+
+
+def _product_metrics(db: Session, product_id: int) -> tuple[float | None, int, int]:
+    rating_row = db.execute(
+        select(func.avg(Review.rating), func.count(Review.id)).where(Review.product_id == product_id)
+    ).one()
+    sold_count = db.scalar(select(func.coalesce(func.sum(OrderItem.quantity), 0)).where(OrderItem.product_id == product_id)) or 0
+    avg_rating = round(float(rating_row[0]), 1) if rating_row[0] is not None else None
+    return avg_rating, int(rating_row[1] or 0), int(sold_count)
 
 
 def _serialize_product_for_buyer(db: Session, p: Product) -> dict:
@@ -12,75 +33,183 @@ def _serialize_product_for_buyer(db: Session, p: Product) -> dict:
     if not primary_image:
         primary_image = db.scalar(select(ProductImage).where(ProductImage.product_id == p.id))
     shop = db.get(Shop, p.shop_id)
+    category = db.get(Category, p.category_id) if p.category_id else None
+    avg_rating, review_count, sold_count = _product_metrics(db, p.id)
     return {
         "id": p.id,
         "name": p.name,
         "price": float(p.price),
         "stock": p.stock,
-        "primary_image": primary_image.url if primary_image else None,
+        "primary_image": sanitize_image_url(primary_image.url) if primary_image else None,
         "shop_id": p.shop_id,
         "shop_name": shop.name if shop else None,
+        "category_id": p.category_id,
+        "category": {"id": category.id, "name": category.name} if category else None,
+        "avg_rating": avg_rating,
+        "review_count": review_count,
+        "sold_count": sold_count,
+    }
+
+
+def _meta(page: int, page_size: int, total: int) -> dict:
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": (total + page_size - 1) // page_size if page_size else 1,
+    }
+
+
+def _serialize_shop_for_search(db: Session, shop: Shop) -> dict:
+    product_count = db.scalar(select(func.count(Product.id)).where(Product.shop_id == shop.id, Product.deleted_at.is_(None))) or 0
+    sold_count = db.scalar(
+        select(func.coalesce(func.sum(OrderItem.quantity), 0))
+        .join(Product, Product.id == OrderItem.product_id)
+        .where(Product.shop_id == shop.id)
+    ) or 0
+    top_image = db.scalar(
+        select(ProductImage.url)
+        .join(Product, Product.id == ProductImage.product_id)
+        .where(Product.shop_id == shop.id, Product.deleted_at.is_(None))
+        .order_by(ProductImage.is_primary.desc(), ProductImage.id.asc())
+    )
+    return {
+        "id": shop.id,
+        "name": shop.name,
+        "description": shop.description,
+        "product_count": int(product_count),
+        "sold_count": int(sold_count),
+        "top_product_image": sanitize_image_url(top_image),
     }
 
 
 def _build_query(db: Session, query: str, page: int, page_size: int,
                  category_id: int | None = None, shop_id: int | None = None,
                  min_price: float | None = None, max_price: float | None = None,
-                 sort: str | None = None):
-    """Build filtered and sorted product query for public search."""
-    stmt = select(Product).where(Product.deleted_at.is_(None))
-
-    # Keyword filter
+                 min_rating: int | None = None, sort: str | None = None):
+    rating_subquery = (
+        select(Review.product_id.label("product_id"), func.avg(Review.rating).label("avg_rating"))
+        .group_by(Review.product_id)
+        .subquery()
+    )
+    sold_subquery = (
+        select(OrderItem.product_id.label("product_id"), func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count"))
+        .group_by(OrderItem.product_id)
+        .subquery()
+    )
+    filters = [Product.deleted_at.is_(None)]
     if query:
-        stmt = stmt.where(Product.name.ilike(f"%{query}%"))
-
-    # Category filter
+        filters.append(Product.name.ilike(f"%{query}%"))
     if category_id is not None:
-        stmt = stmt.where(Product.category_id == category_id)
-
-    # Shop filter
+        filters.append(Product.category_id == category_id)
     if shop_id is not None:
-        stmt = stmt.where(Product.shop_id == shop_id)
-
-    # Price range filter
+        filters.append(Product.shop_id == shop_id)
     if min_price is not None:
-        stmt = stmt.where(Product.price >= min_price)
+        filters.append(Product.price >= min_price)
     if max_price is not None:
-        stmt = stmt.where(Product.price <= max_price)
+        filters.append(Product.price <= max_price)
+    if min_rating is not None:
+        filters.append(rating_subquery.c.avg_rating >= min_rating)
 
-    # Sorting
+    stmt = (
+        select(Product)
+        .outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id)
+        .outerjoin(sold_subquery, sold_subquery.c.product_id == Product.id)
+        .where(and_(*filters))
+    )
+    total_stmt = (
+        select(func.count(Product.id))
+        .outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id)
+        .where(and_(*filters))
+    )
+
     if sort == "price_asc":
-        stmt = stmt.order_by(Product.price.asc())
+        stmt = stmt.order_by(Product.price.asc(), Product.id.desc())
     elif sort == "price_desc":
-        stmt = stmt.order_by(Product.price.desc())
+        stmt = stmt.order_by(Product.price.desc(), Product.id.desc())
+    elif sort in {"top_sales", "popular"}:
+        stmt = stmt.order_by(func.coalesce(sold_subquery.c.sold_count, 0).desc(), Product.id.desc())
     elif sort == "newest":
         stmt = stmt.order_by(Product.id.desc())
     else:
         stmt = stmt.order_by(Product.id.desc())
 
-    products = db.scalars(stmt).all()
-    total = len(products)
-    start = (page - 1) * page_size
-    end = start + page_size
-    items = products[start:end]
-    return {
-        "items": [_serialize_product_for_buyer(db, p) for p in items],
-        "meta": {
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": (total + page_size - 1) // page_size if page_size else 1,
-        },
-    }
+    safe_page = max(page, 1)
+    safe_page_size = max(min(page_size, 100), 1)
+    total = int(db.scalar(total_stmt) or 0)
+    items = db.scalars(stmt.offset((safe_page - 1) * safe_page_size).limit(safe_page_size)).all()
+    return {"items": [_serialize_product_for_buyer(db, p) for p in items], "meta": _meta(safe_page, safe_page_size, total)}
+
+
+def search_shops(db: Session, query: str, page: int, page_size: int):
+    safe_page = max(page, 1)
+    safe_page_size = max(min(page_size, 24), 1)
+    product_count_subquery = (
+        select(Product.shop_id.label("shop_id"), func.count(Product.id).label("product_count"))
+        .where(Product.deleted_at.is_(None))
+        .group_by(Product.shop_id)
+        .subquery()
+    )
+    sold_subquery = (
+        select(Product.shop_id.label("shop_id"), func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count"))
+        .join(OrderItem, OrderItem.product_id == Product.id)
+        .group_by(Product.shop_id)
+        .subquery()
+    )
+    filters = [Shop.status == "active"]
+    relevance = 0
+    if query:
+        filters.append(or_(Shop.name.ilike(f"%{query}%"), Shop.description.ilike(f"%{query}%")))
+        relevance = case(
+            (Shop.name.ilike(f"{query}%"), 3),
+            (Shop.name.ilike(f"%{query}%"), 2),
+            (Shop.description.ilike(f"%{query}%"), 1),
+            else_=0,
+        )
+    total = int(db.scalar(select(func.count(Shop.id)).where(and_(*filters))) or 0)
+    stmt = (
+        select(Shop)
+        .outerjoin(product_count_subquery, product_count_subquery.c.shop_id == Shop.id)
+        .outerjoin(sold_subquery, sold_subquery.c.shop_id == Shop.id)
+        .where(and_(*filters))
+        .order_by(relevance.desc() if query else Shop.id.desc(), func.coalesce(sold_subquery.c.sold_count, 0).desc(), func.coalesce(product_count_subquery.c.product_count, 0).desc(), Shop.id.desc())
+        .offset((safe_page - 1) * safe_page_size)
+        .limit(safe_page_size)
+    )
+    items = db.scalars(stmt).all()
+    return {"items": [_serialize_shop_for_search(db, shop) for shop in items], "meta": _meta(safe_page, safe_page_size, total)}
 
 
 def search_products(db: Session, query: str, page: int, page_size: int,
                     category_id: int | None = None, shop_id: int | None = None,
                     min_price: float | None = None, max_price: float | None = None,
-                    sort: str | None = None):
+                    min_rating: int | None = None, sort: str | None = None):
     return _build_query(db, query, page, page_size,
                         category_id=category_id, shop_id=shop_id,
-                        min_price=min_price, max_price=max_price, sort=sort)
+                        min_price=min_price, max_price=max_price, min_rating=min_rating, sort=sort)
+
+
+def search_marketplace(db: Session, query: str, page: int, page_size: int,
+                       shop_page: int = 1, shop_page_size: int = 4,
+                       category_id: int | None = None, shop_id: int | None = None,
+                       min_price: float | None = None, max_price: float | None = None,
+                       min_rating: int | None = None, sort: str | None = None):
+    products = search_products(
+        db,
+        query=query,
+        page=page,
+        page_size=page_size,
+        category_id=category_id,
+        shop_id=shop_id,
+        min_price=min_price,
+        max_price=max_price,
+        min_rating=min_rating,
+        sort=sort,
+    )
+    shops = {"items": [], "meta": _meta(max(shop_page, 1), max(min(shop_page_size, 24), 1), 0)}
+    if query and shop_id is None:
+        shops = search_shops(db, query, shop_page, shop_page_size)
+    return {"shops": shops, "products": products}
 
 
 def recommend_products(db: Session, page: int, page_size: int):
