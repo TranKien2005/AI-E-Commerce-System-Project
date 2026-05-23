@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ecommerce-migration
+spec:
+  template:
+    spec:
+      containers:
+        - name: migration
+          image: ai-ecommerce-backend:phase1
+          imagePullPolicy: Never
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: ecommerce-backend-config
+            - secretRef:
+                name: ecommerce-backend-secret
+      restartPolicy: Never
+  backoffLimit: 1
