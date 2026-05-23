@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     let message = 'Đã có lỗi xảy ra';
-    
+
     if (error.response?.data?.detail?.error?.message) {
       message = error.response.data.detail.error.message;
     } else if (error.response?.data?.error?.message) {

@@ -1128,245 +1128,463 @@ Tích hợp AI để hỗ trợ phân loại báo cáo.
 CHƯƠNG 5: THIẾT KẾ CƠ SỞ DỮ LIỆU
 
 5.1 Tổng quan
-Hệ thống sử dụng cơ sở dữ liệu quan hệ PostgreSQL làm nền tảng lưu trữ chính nhằm đảm bảo tính nhất quán, toàn vẹn và khả năng mở rộng.
-Dữ liệu trong hệ thống bao gồm các thành phần chính:
-Người dùng và phân quyền
-Cửa hàng và sản phẩm
-Đơn hàng và thanh toán
-Tương tác (chat, đánh giá)
-Quản trị và báo cáo
-Ngoài ra, hệ thống hỗ trợ các chức năng thông minh thông qua cơ chế embedding để phục vụ tìm kiếm ngữ nghĩa và chatbot.
+Hệ thống sử dụng PostgreSQL làm cơ sở dữ liệu quan hệ chính. Backend thao tác dữ liệu thông qua SQLAlchemy ORM, migration được quản lý bằng Alembic. Dữ liệu được tổ chức theo mô hình sàn thương mại điện tử nhiều vai trò, trong đó cùng một hệ thống phục vụ người mua, người bán và quản trị viên.
 
-5.2 Các thực thể chính
-Hệ thống bao gồm các thực thể:
-Users
-Shops
-Categories
-Products
-Product_Images
-Orders
-Order_Items
-Payments
-Reviews
-Conversations
-Messages
-Chatbot_Configs
-Reports
-Notifications
-Audit_Logs
+Các nhóm dữ liệu chính gồm:
+- Người dùng, phân quyền và trạng thái tài khoản.
+- Cửa hàng, danh mục, sản phẩm, hình ảnh và video sản phẩm.
+- Giỏ hàng, đơn hàng, chi tiết đơn hàng và thanh toán.
+- Đánh giá sản phẩm, báo cáo vi phạm và thông báo hệ thống.
+- Hội thoại, tin nhắn và cấu hình chatbot của cửa hàng.
+- Nhật ký quản trị và dữ liệu phục vụ dashboard.
+
+Một số tài nguyên quan trọng dùng cơ chế soft delete thông qua trường deleted_at để giữ tính toàn vẹn dữ liệu lịch sử. Ví dụ sản phẩm và đơn hàng không nên xóa cứng khi đã phát sinh giao dịch, vì dữ liệu này còn được dùng cho báo cáo, lịch sử mua hàng và kiểm toán.
+
+5.2 Danh sách thực thể chính
+- Users: tài khoản người dùng, vai trò buyer/seller/admin và trạng thái hoạt động.
+- Shops: cửa hàng do seller hoặc admin sở hữu.
+- Categories: cây danh mục sản phẩm.
+- Products: thông tin sản phẩm thuộc cửa hàng.
+- Product_Images: danh sách ảnh sản phẩm.
+- Product_Videos: danh sách video sản phẩm nếu có.
+- Cart_Items: các sản phẩm trong giỏ hàng của buyer.
+- Orders: đơn hàng cấp buyer.
+- Order_Items: từng dòng sản phẩm trong đơn hàng.
+- Payments: thông tin thanh toán mô phỏng/ghi nhận thanh toán.
+- Reviews: đánh giá sản phẩm.
+- Seller_Requests: yêu cầu đăng ký mở cửa hàng.
+- Reports: báo cáo vi phạm.
+- Notifications: thông báo hệ thống theo tài khoản.
+- Conversations: hội thoại buyer-seller theo shop.
+- Messages: tin nhắn trong hội thoại.
+- Chatbot_Configs: cấu hình chatbot của shop.
+- Audit_Logs: nhật ký thao tác quản trị.
 
 5.3 Thiết kế bảng dữ liệu
 
 5.3.1 Bảng Users
-Lưu thông tin người dùng trong hệ thống.
-id (PK)
-email
-password
-role (buyer, seller, admin)
-status (active, banned)
-last_seen (timestamp)
-created_at
+Mục đích: lưu thông tin tài khoản, thông tin định danh và quyền truy cập của người dùng.
+
+Các trường chính:
+- id: khóa chính, định danh duy nhất của user.
+- email: email đăng nhập, duy nhất trong hệ thống.
+- password: mật khẩu đã được hash, không lưu mật khẩu gốc.
+- full_name: tên hiển thị của người dùng.
+- role: vai trò tài khoản, gồm buyer, seller hoặc admin.
+- status: trạng thái tài khoản, ví dụ pending_verification, active, deleted hoặc trạng thái khóa tùy nghiệp vụ.
+- email_verified_at: thời điểm xác thực email thành công, có thể null nếu chưa xác thực.
+- deleted_at: thời điểm xóa mềm tài khoản, null nếu tài khoản còn hoạt động.
+- created_at: thời điểm tạo tài khoản.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Người dùng mới đăng ký cần xác thực OTP trước khi tài khoản active.
+- get_current_user chỉ cho phép user active truy cập API yêu cầu đăng nhập.
+- role được dùng bởi require_roles để phân quyền seller/admin.
 
 5.3.2 Bảng Shops
-Lưu thông tin cửa hàng của người bán.
-id (PK)
-owner_id (FK → Users.id)
-name
-description
-status (active, suspended)
-created_at
-Ghi chú:
-Khi tài khoản người bán bị khóa (banned), cửa hàng sẽ được chuyển sang trạng thái suspended.
+Mục đích: lưu thông tin cửa hàng của người bán.
+
+Các trường chính:
+- id: khóa chính của shop.
+- owner_id: khóa ngoại đến Users.id, xác định chủ shop.
+- name: tên cửa hàng hiển thị công khai.
+- description: mô tả cửa hàng.
+- status: trạng thái shop, thường là active.
+- created_at: thời điểm tạo shop.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Mỗi seller sở hữu shop của mình và chỉ được quản lý sản phẩm/đơn hàng thuộc shop đó.
+- Admin có thể có quyền truy cập rộng hơn tùy endpoint.
+- Chat giữa buyer và seller nên gắn với shop_id để seller biết hội thoại thuộc cửa hàng nào.
 
 5.3.3 Bảng Categories
-Lưu danh mục sản phẩm.
-id (PK)
-name
-parent_id (FK → Categories.id)
+Mục đích: lưu cây danh mục sản phẩm.
+
+Các trường chính:
+- id: khóa chính của danh mục.
+- name: tên danh mục.
+- parent_id: khóa ngoại tự tham chiếu đến Categories.id, null nếu là danh mục gốc.
+
+Ghi chú nghiệp vụ:
+- category_id của sản phẩm là tùy chọn.
+- Khi seller tạo/sửa sản phẩm, nếu truyền category_id thì hệ thống kiểm tra danh mục có tồn tại để tránh lỗi khóa ngoại thô.
 
 5.3.4 Bảng Products
-Lưu thông tin sản phẩm.
-id (PK)
-shop_id (FK → Shops.id)
-category_id (FK → Categories.id)
-name
-description
-price
-stock
-attributes (JSONB)
-created_at
-Ghi chú:
-Trường attributes cho phép lưu các thuộc tính linh hoạt của sản phẩm.
+Mục đích: lưu thông tin sản phẩm do shop đăng bán.
+
+Các trường chính:
+- id: khóa chính của sản phẩm.
+- shop_id: khóa ngoại đến Shops.id, xác định sản phẩm thuộc shop nào.
+- category_id: khóa ngoại đến Categories.id, có thể null.
+- name: tên sản phẩm.
+- description: mô tả sản phẩm.
+- price: giá bán hiện tại.
+- stock: số lượng tồn kho khả dụng.
+- attributes: dữ liệu JSON chứa thuộc tính linh hoạt của sản phẩm, ví dụ màu sắc, kích thước, thương hiệu hoặc metadata import.
+- deleted_at: thời điểm xóa mềm sản phẩm, null nếu sản phẩm còn được bán.
+- created_at: thời điểm tạo sản phẩm.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Product không bị xóa cứng khi seller xóa sản phẩm, mà được đánh dấu deleted_at.
+- Khi checkout, hệ thống kiểm tra stock và trừ tồn kho theo số lượng mua.
+- Public catalog chỉ nên hiển thị sản phẩm chưa bị xóa mềm.
 
 5.3.5 Bảng Product_Images
-Lưu danh sách hình ảnh của sản phẩm.
-id (PK)
-product_id (FK → Products.id)
-url
-is_primary
+Mục đích: lưu nhiều ảnh cho một sản phẩm.
 
-5.3.6 Bảng Orders
-Lưu thông tin đơn hàng.
-id (PK)
-user_id (FK → Users.id)
-total_price
-status (pending, processing, shipping, delivered, cancelled)
-payment_status
-shipping_address
-shipping_status (preparing, shipping, delivered)
-shipping_note
-created_at
-Ghi chú:
-status phản ánh vòng đời xử lý nghiệp vụ đơn hàng.
-shipping_status phản ánh tiến trình vận chuyển.
-Hệ thống sử dụng mô hình vận chuyển đơn giản để mô phỏng trạng thái giao hàng.
+Các trường chính:
+- id: khóa chính của ảnh.
+- product_id: khóa ngoại đến Products.id.
+- url: đường dẫn ảnh.
+- is_primary: đánh dấu ảnh đại diện chính của sản phẩm.
+- created_at: thời điểm thêm ảnh.
 
-5.3.7 Bảng Order_Items
-Chi tiết các sản phẩm trong đơn hàng.
-id (PK)
-order_id (FK → Orders.id)
-product_id (FK → Products.id)
-quantity
-price
+Ghi chú nghiệp vụ:
+- Một sản phẩm có thể có nhiều ảnh.
+- API seller hỗ trợ thêm ảnh, cập nhật is_primary và xóa ảnh.
+- Frontend ưu tiên primary_image để hiển thị thẻ sản phẩm.
 
-5.3.8 Bảng Payments
-Lưu thông tin thanh toán.
-id (PK)
-order_id (FK → Orders.id)
-method (COD, ONLINE)
-status (pending, success, failed)
-transaction_id
-created_at
-Ghi chú:
-Thanh toán online được mô phỏng, không tích hợp cổng thanh toán thực tế.
-Trạng thái thanh toán được cập nhật dựa trên hành động của người dùng trong hệ thống.
+5.3.6 Bảng Product_Videos
+Mục đích: lưu video minh họa sản phẩm nếu có.
 
-5.3.9 Bảng Reviews
-Lưu đánh giá sản phẩm.
-id (PK)
-user_id (FK → Users.id)
-product_id (FK → Products.id)
-rating
-comment
-created_at
+Các trường chính:
+- id: khóa chính của video.
+- product_id: khóa ngoại đến Products.id.
+- url: đường dẫn video.
+- created_at: thời điểm thêm video.
 
-5.3.10 Bảng Conversations
-Lưu thông tin hội thoại.
-id (PK)
-buyer_id (FK → Users.id)
-seller_id (FK → Users.id)
-is_bot_enabled (boolean)
-created_at
-Ghi chú:
-is_bot_enabled cho phép bật/tắt chatbot trong hội thoại.
+Ghi chú nghiệp vụ:
+- Video là dữ liệu bổ sung cho trang chi tiết sản phẩm.
+- Hệ thống có thể mở rộng thêm thumbnail hoặc thứ tự hiển thị trong tương lai.
 
-5.3.11 Bảng Messages
-Lưu nội dung tin nhắn.
-id (PK)
-conversation_id (FK → Conversations.id)
-sender_id (FK → Users.id)
-content
-is_bot (boolean)
-is_read (boolean)
-created_at
+5.3.7 Bảng Cart_Items
+Mục đích: lưu giỏ hàng theo tài khoản buyer.
 
-5.3.12 Bảng Chatbot_Configs
-Cấu hình chatbot cho từng cửa hàng.
-id (PK)
-shop_id (FK → Shops.id)
-api_key (encrypted)
-prompt
-template
-created_at
+Các trường chính:
+- id: khóa chính của dòng giỏ hàng.
+- user_id: khóa ngoại đến Users.id, xác định chủ giỏ hàng.
+- product_id: khóa ngoại đến Products.id.
+- quantity: số lượng sản phẩm trong giỏ.
+- created_at: thời điểm thêm vào giỏ.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ràng buộc:
+- Nên có unique constraint trên cặp user_id và product_id để mỗi user chỉ có một dòng giỏ hàng cho một sản phẩm.
+
+Ghi chú nghiệp vụ:
+- POST /cart/items thêm mới hoặc tăng số lượng nếu sản phẩm đã có trong giỏ.
+- PUT /cart/items/{item_id} cập nhật số lượng.
+- DELETE /cart/items/{item_id} xóa sản phẩm khỏi giỏ.
+- Sau các thao tác giỏ hàng, backend phát account WebSocket event cart_updated để frontend cập nhật navbar/cart preview.
+
+5.3.8 Bảng Orders
+Mục đích: lưu thông tin đơn hàng ở cấp người mua.
+
+Các trường chính:
+- id: khóa chính của đơn hàng.
+- user_id: khóa ngoại đến Users.id, xác định buyer tạo đơn.
+- total_price: tổng tiền của đơn hàng tại thời điểm checkout.
+- status: trạng thái nghiệp vụ chính của đơn hàng.
+- payment_status: trạng thái thanh toán.
+- shipping_address: địa chỉ giao hàng được nhập khi checkout.
+- shipping_status: trường vận chuyển cũ/legacy, hiện giữ để tương thích dữ liệu và API cũ.
+- shipping_note: ghi chú vận chuyển cũ/legacy.
+- deleted_at: thời điểm xóa mềm đơn hàng nếu có.
+- created_at: thời điểm tạo đơn hàng.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Các trạng thái status chính:
+- pending: đơn mới được tạo, chờ seller xử lý.
+- processing: seller đã tiếp nhận/xử lý đơn.
+- shipping: đơn đang được giao.
+- delivered: đơn đã giao thành công.
+- cancelled: đơn đã hủy.
+
+Luồng chuyển trạng thái hiện tại:
+- pending -> processing hoặc cancelled.
+- processing -> shipping hoặc cancelled.
+- shipping -> delivered.
+- delivered và cancelled là trạng thái kết thúc.
+
+Ghi chú nghiệp vụ:
+- Checkout tạo đơn mới với status = pending và shipping_status = preparing.
+- Checkout không tự động chuyển đơn sang delivered.
+- Seller UI hiện dùng Orders.status làm luồng fulfillment chính; shipping_status và shipping_note chỉ là legacy.
+- Một Orders hiện có thể chứa sản phẩm từ nhiều shop. Khi seller xem đơn, hệ thống lọc Order_Items theo shop hiện tại, nhưng Orders.status vẫn là trạng thái chung của cả đơn. Nếu cần mô hình marketplace đầy đủ hơn, nên tách mỗi shop thành một order riêng hoặc bổ sung bảng seller_orders/shipments để quản lý trạng thái riêng từng shop.
+
+5.3.9 Bảng Order_Items
+Mục đích: lưu từng sản phẩm trong đơn hàng.
+
+Các trường chính:
+- id: khóa chính của dòng đơn hàng.
+- order_id: khóa ngoại đến Orders.id.
+- product_id: khóa ngoại đến Products.id.
+- quantity: số lượng mua.
+- price: đơn giá snapshot tại thời điểm đặt hàng.
+
+Ghi chú nghiệp vụ:
+- price là giá tại thời điểm mua, không phụ thuộc vào giá Product sau này.
+- Seller order response chỉ trả các Order_Items thuộc shop của seller hiện tại.
+- total_price trong seller response có thể là subtotal của riêng shop, không phải tổng tiền toàn bộ đơn buyer.
+
+5.3.10 Bảng Payments
+Mục đích: lưu trạng thái thanh toán của đơn hàng.
+
+Các trường chính:
+- id: khóa chính của payment.
+- order_id: khóa ngoại đến Orders.id.
+- method: phương thức thanh toán, ví dụ COD hoặc ONLINE.
+- status: trạng thái thanh toán, ví dụ pending, success, failed.
+- transaction_id: mã giao dịch nếu có.
+- created_at: thời điểm tạo bản ghi thanh toán.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Trong phạm vi prototype, thanh toán có thể là mô phỏng thay vì tích hợp cổng thanh toán thật.
+- payment_status trong Orders phản ánh trạng thái thanh toán tổng quát của đơn.
+
+5.3.11 Bảng Reviews
+Mục đích: lưu đánh giá sản phẩm của buyer.
+
+Các trường chính:
+- id: khóa chính của review.
+- user_id: khóa ngoại đến Users.id, xác định người đánh giá.
+- product_id: khóa ngoại đến Products.id.
+- rating: số sao đánh giá, từ 1 đến 5.
+- title: tiêu đề ngắn của đánh giá.
+- comment: nội dung đánh giá.
+- verified_purchase: đánh dấu đánh giá đến từ đơn hàng đã giao thành công.
+- helpful_votes: số lượt hữu ích, phục vụ mở rộng hoặc dữ liệu import.
+- source_user_id: id user từ nguồn dữ liệu import nếu có.
+- source_review_id: id review từ nguồn dữ liệu import nếu có.
+- created_at: thời điểm tạo review.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Buyer chỉ được review sản phẩm đã mua trong đơn có trạng thái delivered.
+- Service dùng cơ chế upsert: mỗi cặp user_id/product_id chỉ có một review. Nếu user gửi lại review cho cùng sản phẩm, hệ thống cập nhật review cũ thay vì tạo bản ghi trùng.
+- verified_purchase được đặt true khi review thỏa điều kiện mua hàng hợp lệ.
+
+5.3.12 Bảng Seller_Requests
+Mục đích: lưu yêu cầu đăng ký mở cửa hàng của buyer.
+
+Các trường chính:
+- id: khóa chính của yêu cầu.
+- user_id: khóa ngoại đến Users.id, xác định người gửi yêu cầu.
+- shop_name: tên shop mong muốn.
+- description: mô tả shop.
+- contact: thông tin liên hệ.
+- status: trạng thái yêu cầu, ví dụ pending, approved, rejected.
+- reason: lý do từ chối hoặc ghi chú xử lý nếu có.
+- created_at: thời điểm gửi yêu cầu.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Buyer dùng POST /seller-requests để gửi yêu cầu.
+- Admin duyệt hoặc từ chối yêu cầu qua endpoint admin.
+- Khi được duyệt, user được chuyển sang role seller và hệ thống tạo/cập nhật shop tương ứng.
 
 5.3.13 Bảng Reports
-Lưu báo cáo vi phạm.
-id (PK)
-reporter_id (FK → Users.id)
-target_type
-target_id
-reason
-status
-created_at
+Mục đích: lưu báo cáo vi phạm do người dùng gửi.
+
+Các trường chính:
+- id: khóa chính của báo cáo.
+- reporter_id: khóa ngoại đến Users.id, xác định người gửi báo cáo.
+- target_type: loại đối tượng bị báo cáo, ví dụ product, shop hoặc user.
+- target_id: id của đối tượng bị báo cáo.
+- reason: lý do báo cáo.
+- status: trạng thái xử lý, ví dụ pending, resolved, rejected.
+- created_at: thời điểm tạo báo cáo.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- Admin xem danh sách reports và cập nhật trạng thái xử lý.
+- Hệ thống có thể mở rộng thêm action_taken, admin_note hoặc priority nếu cần kiểm duyệt chi tiết hơn.
 
 5.3.14 Bảng Notifications
-Lưu thông báo hệ thống.
-id (PK)
-user_id (FK → Users.id)
-content
-type
-channel (email, system)
-is_read
-created_at
-Ghi chú:
-Hệ thống hiện sử dụng email làm kênh chính.
-Thiết kế cho phép mở rộng sang các kênh khác trong tương lai.
+Mục đích: lưu thông báo hệ thống theo tài khoản.
 
-5.3.15 Bảng Audit_Logs
-Lưu lịch sử hành động của quản trị viên.
-id (PK)
-admin_id (FK → Users.id)
-action
-target_type
-target_id
-description
-created_at
+Các trường chính:
+- id: khóa chính của notification.
+- user_id: khóa ngoại đến Users.id, xác định tài khoản nhận thông báo.
+- content: nội dung thông báo.
+- type: loại thông báo, ví dụ order, seller_order, shipping, payment hoặc system.
+- channel: kênh thông báo, ví dụ system hoặc email.
+- is_read: trạng thái đã đọc/chưa đọc.
+- created_at: thời điểm tạo thông báo.
 
-5.4 Thiết kế dữ liệu cho AI (Embedding)
-Để hỗ trợ các chức năng thông minh như tìm kiếm theo ý định và chatbot, hệ thống sử dụng vector embedding cho dữ liệu sản phẩm.
-Mỗi sản phẩm được chuyển đổi thành một vector embedding dựa trên:
-tên sản phẩm
-mô tả
-thuộc tính
-Embedding được sử dụng để:
-tìm kiếm sản phẩm theo ngữ nghĩa
-cung cấp ngữ cảnh cho chatbot
-gợi ý sản phẩm
-Trong hệ thống, embedding không được lưu trực tiếp trong cơ sở dữ liệu quan hệ mà được quản lý bởi một thành phần truy xuất vector riêng, ví dụ như FAISS.
-Cấu trúc logic của embedding có thể được mô tả như sau:
-product_id
-vector
+Ghi chú nghiệp vụ:
+- Thông báo được gắn với user nhận, không gắn trực tiếp với shop.
+- Khi checkout tạo đơn, buyer nhận thông báo xác nhận đơn; seller owner của từng shop trong đơn nhận thông báo đơn hàng mới.
+- Khi seller cập nhật trạng thái đơn, buyer nhận thông báo cập nhật.
+- Chat message không tạo notification row; badge chat dùng WebSocket /api/v1/chat/events và unread_count riêng.
+- Người dùng có thể đánh dấu một thông báo đã đọc, đánh dấu tất cả đã đọc hoặc xóa từng thông báo.
 
-5.5 Tổng kết
-Thiết kế cơ sở dữ liệu đảm bảo:
-Hỗ trợ đầy đủ các chức năng thương mại điện tử
-Dễ dàng mở rộng và bảo trì
-Tích hợp được các thành phần AI
-Giữ được sự đơn giản cần thiết cho phạm vi bài tập lớn
-Hệ thống sử dụng kết hợp giữa dữ liệu quan hệ và các thành phần hỗ trợ như embedding để đạt hiệu quả cao trong cả lưu trữ và xử lý.
+5.3.15 Bảng Conversations
+Mục đích: lưu hội thoại giữa buyer và seller theo ngữ cảnh shop.
+
+Các trường chính:
+- id: khóa chính của hội thoại.
+- buyer_id: khóa ngoại đến Users.id, người mua tham gia hội thoại.
+- seller_id: khóa ngoại đến Users.id, người bán hoặc owner shop.
+- shop_id: khóa ngoại đến Shops.id, có thể null với dữ liệu cũ hoặc hội thoại legacy.
+- is_bot_enabled: bật/tắt chatbot cho hội thoại.
+- created_at: thời điểm tạo hội thoại.
+
+Ghi chú nghiệp vụ:
+- Buyer mở hội thoại bằng shop_id là cách ưu tiên; backend sẽ tự tìm owner shop.
+- seller_id được giữ để tương thích luồng cũ.
+- Buyer chat và seller/shop chat dùng cùng bảng dữ liệu nhưng endpoint và UI tách theo vai trò.
+
+5.3.16 Bảng Messages
+Mục đích: lưu nội dung tin nhắn trong hội thoại.
+
+Các trường chính:
+- id: khóa chính của tin nhắn.
+- conversation_id: khóa ngoại đến Conversations.id.
+- sender_id: khóa ngoại đến Users.id, người gửi tin nhắn.
+- content: nội dung tin nhắn.
+- is_bot: đánh dấu tin nhắn do bot sinh ra.
+- is_read: trạng thái đã đọc.
+- created_at: thời điểm gửi tin nhắn.
+
+Ghi chú nghiệp vụ:
+- Khi gửi tin nhắn, backend phát WebSocket event chat_message cho phía còn lại.
+- PATCH /chat/conversations/{conversation_id}/read hoặc /seller/chat/conversations/{conversation_id}/read đánh dấu các tin nhắn từ người khác là đã đọc.
+
+5.3.17 Bảng Chatbot_Configs
+Mục đích: lưu cấu hình chatbot theo shop.
+
+Các trường chính:
+- id: khóa chính của cấu hình.
+- shop_id: khóa ngoại đến Shops.id.
+- api_key: khóa API dùng để gọi dịch vụ AI, cần được bảo vệ/mã hóa hoặc masking khi trả về frontend.
+- prompt: prompt hệ thống hoặc hướng dẫn cách chatbot trả lời.
+- template: mẫu trả lời hoặc cấu hình nội dung mặc định.
+- is_enabled: bật/tắt chatbot.
+- created_at: thời điểm tạo cấu hình.
+- updated_at: thời điểm cập nhật gần nhất nếu có.
+
+Ghi chú nghiệp vụ:
+- GET /seller/chatbot-config trả về cấu hình đã masking api_key.
+- PATCH /seller/chatbot-config cập nhật toàn bộ cấu hình chính gồm api_key, prompt, template và is_enabled.
+- Nếu is_enabled = false, hệ thống không gọi chatbot tự động.
+
+5.3.18 Bảng Audit_Logs
+Mục đích: lưu nhật ký thao tác quản trị và sự kiện quan trọng.
+
+Các trường chính:
+- id: khóa chính của log.
+- admin_id: khóa ngoại đến Users.id, xác định admin thực hiện thao tác nếu có.
+- action: tên hành động, ví dụ update_user, approve_seller_request, resolve_report.
+- target_type: loại đối tượng bị tác động.
+- target_id: id đối tượng bị tác động.
+- description: mô tả chi tiết hành động.
+- created_at: thời điểm ghi log.
+
+Ghi chú nghiệp vụ:
+- Audit log hỗ trợ truy vết thao tác quản trị.
+- Admin console có endpoint để xem audit logs.
+
+5.4 Dữ liệu hỗ trợ AI và tìm kiếm
+Hệ thống có mục tiêu hỗ trợ tìm kiếm thông minh và chatbot. Dữ liệu AI có thể được tổ chức theo hai hướng:
+
+1. Dữ liệu quan hệ trong PostgreSQL:
+- Products.name, Products.description, Products.attributes phục vụ tìm kiếm keyword và tạo ngữ cảnh sản phẩm.
+- Reviews.rating/comment phục vụ tổng hợp đánh giá.
+- Conversations/Messages phục vụ lịch sử hội thoại nếu cần mở rộng chatbot.
+
+2. Dữ liệu vector/embedding bên ngoài:
+- product_id: liên kết về sản phẩm trong PostgreSQL.
+- vector: embedding biểu diễn nội dung sản phẩm.
+- metadata: thông tin phụ như category_id, shop_id, price range hoặc tags.
+
+Ghi chú thiết kế:
+- Trong phạm vi prototype, endpoint /products/intent-search có thể dùng service tìm kiếm để phân tích truy vấn và fallback về keyword search khi AI không khả dụng.
+- Nếu triển khai production, embedding nên được lưu ở vector store riêng như FAISS, pgvector hoặc dịch vụ vector database.
+- PostgreSQL vẫn là nguồn dữ liệu chính; vector store chỉ là lớp chỉ mục phục vụ truy xuất ngữ nghĩa.
+
+5.5 Quan hệ dữ liệu chính
+- Users 1-n Shops: một user seller/admin có thể sở hữu shop.
+- Shops 1-n Products: một shop có nhiều sản phẩm.
+- Categories 1-n Products: một danh mục có nhiều sản phẩm.
+- Products 1-n Product_Images/Product_Videos: một sản phẩm có nhiều ảnh/video.
+- Users 1-n Cart_Items: mỗi buyer có nhiều dòng giỏ hàng.
+- Users 1-n Orders: mỗi buyer có nhiều đơn hàng.
+- Orders 1-n Order_Items: mỗi đơn hàng có nhiều dòng sản phẩm.
+- Products 1-n Order_Items: một sản phẩm có thể xuất hiện trong nhiều đơn hàng.
+- Orders 1-n Payments: một đơn hàng có thể có một hoặc nhiều bản ghi thanh toán tùy cách mở rộng.
+- Users 1-n Reviews và Products 1-n Reviews: review liên kết buyer với product.
+- Users 1-n Notifications: mỗi user nhận nhiều thông báo.
+- Conversations 1-n Messages: một hội thoại có nhiều tin nhắn.
+- Shops 1-1 hoặc 1-n Chatbot_Configs tùy chính sách cấu hình; hiện logic xem như cấu hình theo shop.
+
+5.6 Tổng kết thiết kế cơ sở dữ liệu
+Thiết kế dữ liệu hiện tại đáp ứng các luồng chính của hệ thống:
+- Đăng ký, xác thực và phân quyền theo vai trò.
+- Quản lý cửa hàng, danh mục, sản phẩm và media sản phẩm.
+- Giỏ hàng, checkout, đơn hàng, thanh toán và cập nhật trạng thái.
+- Đánh giá sản phẩm có kiểm tra mua hàng hợp lệ.
+- Chat buyer-seller, thông báo realtime và notification theo tài khoản.
+- Admin quản lý user, seller request, report, audit log và metrics.
+
+Một hạn chế quan trọng hiện tại là Orders.status vẫn là trạng thái chung của toàn đơn hàng. Với marketplace có nhiều shop trong một đơn, mô hình tương lai nên tách order theo shop hoặc thêm seller_orders/shipments để mỗi shop có trạng thái xử lý riêng.
 
 
 CHƯƠNG 6: THIẾT KẾ API
 
 6.1 Tổng quan
-Hệ thống cung cấp API theo kiến trúc RESTful, sử dụng giao thức HTTP và định dạng JSON. Backend được xây dựng bằng FastAPI kết hợp với cơ sở dữ liệu PostgreSQL.
+Backend cung cấp API REST dưới prefix /api/v1. API được xây dựng bằng FastAPI, dữ liệu trao đổi ở định dạng JSON và hầu hết response được bọc trong response envelope thống nhất.
 
-Nguyên tắc thiết kế API:
-- Tách theo vai trò Buyer, Seller, Admin.
-- Endpoint theo tài nguyên (resource-based).
-- Hỗ trợ phân trang, lọc, sắp xếp nhất quán.
-- Chuẩn hóa mã lỗi và response lỗi.
-- Các chức năng AI được tích hợp trong luồng nghiệp vụ qua endpoint nghiệp vụ (ví dụ intent search, chatbot), không tách thành dịch vụ AI public độc lập.
+Base URL local:
+/api/v1
+
+Ví dụ URL đầy đủ:
+http://localhost:8000/api/v1/products
+
+Các nhóm router chính:
+- Auth: /auth, xử lý đăng ký, OTP, đăng nhập, refresh token, logout và quên mật khẩu.
+- Buyer/Public: /, xử lý catalog, shop, cart, order, review, notification, chat và seller request.
+- Seller: /seller, xử lý shop, sản phẩm, đơn hàng seller, chatbot, thống kê và chat seller.
+- Admin: /admin, xử lý user, seller request, report, audit log, metrics và system logs.
+- WebSocket: /chat/events và /account/events, xử lý realtime event.
 
 6.2 Quy ước chung
-Base URL: /api/v1
-Format dữ liệu: JSON
-Authentication: Bearer JWT (Access Token)
-- Có thể áp dụng rate limiting cho các endpoint nhạy cảm (login, chat, AI).
-- Rate limit gợi ý: login tối đa 10 lần/phút/IP, gửi OTP tối đa 5 lần/phút/tài khoản, intent-search tối đa 30 lần/phút/tài khoản.
-- Các tài nguyên quan trọng ưu tiên dùng trạng thái (status) thay vì xóa cứng.
-- Soft delete áp dụng cho các tài nguyên quan trọng như Products, Orders, Users để đảm bảo toàn vẹn dữ liệu cho báo cáo và kiểm toán.
-- Các trường như email, password được validate theo quy tắc bảo mật.
-- Quy tắc mật khẩu gợi ý: tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.
 
-6.2.1 Response thành công
+6.2.1 Authentication
+Các endpoint public không cần token gồm danh mục, sản phẩm, shop và review công khai. Các endpoint tài khoản cần header:
+Authorization: Bearer <access_token>
+
+Access token được cấp bởi POST /auth/login. Refresh token dùng với POST /auth/refresh để lấy access token mới. Nếu token thiếu, sai hoặc user không active, backend trả lỗi 401 hoặc 403 tùy trường hợp.
+
+6.2.2 Response thành công
+Dạng chuẩn:
 {
   "success": true,
   "data": {},
-  "message": "OK"
+  "message": null
 }
 
-6.2.2 Response lỗi
+Ý nghĩa trường:
+- success: true nếu request xử lý thành công.
+- data: dữ liệu nghiệp vụ trả về. Có thể là object, list wrapper hoặc null.
+- message: thông báo bổ sung nếu có.
+
+Ví dụ:
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "email": "buyer@example.com"
+  },
+  "message": null
+}
+
+6.2.3 Response lỗi
+Dạng chuẩn:
 {
   "success": false,
   "error": {
@@ -1376,430 +1594,1943 @@ Authentication: Bearer JWT (Access Token)
   }
 }
 
-6.2.3 HTTP status code sử dụng
-- 200 OK: Thành công.
-- 201 Created: Tạo mới thành công.
-- 204 No Content: Xóa/cập nhật không trả body.
-- 400 Bad Request: Request sai định dạng hoặc logic.
-- 401 Unauthorized: Chưa xác thực.
-- 403 Forbidden: Không đủ quyền.
-- 404 Not Found: Không tìm thấy tài nguyên.
-- 409 Conflict: Xung đột dữ liệu (email trùng, trạng thái không hợp lệ).
-- 422 Unprocessable Entity: Lỗi validate dữ liệu.
-- 500 Internal Server Error: Lỗi hệ thống.
+Ý nghĩa trường:
+- success: false nếu request thất bại.
+- error.code: mã lỗi ngắn để frontend phân loại.
+- error.message: thông báo lỗi hiển thị hoặc debug.
+- error.details: danh sách chi tiết validate nếu có.
 
-6.2.4 Phân trang chuẩn
-Các API danh sách dùng query:
-- page (mặc định 1)
-- page_size (mặc định 20, tối đa 100)
+6.2.4 HTTP status code
+- 200 OK: request thành công.
+- 201 Created: tạo tài nguyên thành công.
+- 204 No Content: xóa thành công và không trả body.
+- 400 Bad Request: dữ liệu hợp lệ về format nhưng sai logic nghiệp vụ.
+- 401 Unauthorized: thiếu hoặc sai xác thực.
+- 403 Forbidden: đã xác thực nhưng không đủ quyền.
+- 404 Not Found: không tìm thấy tài nguyên.
+- 409 Conflict: xung đột dữ liệu, ví dụ email đã tồn tại hoặc yêu cầu bị trùng.
+- 422 Unprocessable Entity: lỗi validate request body/query/path.
+- 500 Internal Server Error: lỗi hệ thống.
 
-Response danh sách:
+6.2.5 Phân trang
+Các API danh sách thường dùng:
+- page: số trang, mặc định 1.
+- page_size: số phần tử mỗi trang, mặc định tùy endpoint, thường là 20.
+
+Response phân trang thường có dạng:
 {
-  "success": true,
-  "data": {
-    "items": [],
-    "meta": {
-      "page": 1,
-      "page_size": 20,
-      "total": 120,
-      "total_pages": 6
-    }
-  },
-  "message": "OK"
+  "items": [],
+  "meta": {
+    "page": 1,
+    "page_size": 20,
+    "total": 100,
+    "total_pages": 5
+  }
 }
 
-6.3 Nhóm API xác thực (Auth)
+6.2.6 Quy ước trạng thái đơn hàng
+Trạng thái chính nằm ở trường status của Orders:
+- pending: chờ xử lý.
+- processing: đang xử lý.
+- shipping: đang giao.
+- delivered: đã giao.
+- cancelled: đã hủy.
 
-6.3.1 Đăng ký tài khoản
-- POST /auth/register
-Mô tả: Tạo tài khoản buyer mới.
-Request:
+Luồng hợp lệ:
+- pending -> processing hoặc cancelled.
+- processing -> shipping hoặc cancelled.
+- shipping -> delivered.
+- delivered/cancelled không chuyển tiếp.
+
+6.3 Nhóm API xác thực Auth
+
+6.3.1 POST /auth/register
+Mục đích: tạo tài khoản buyer mới và gửi OTP xác thực email.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email đăng nhập, phải đúng định dạng email và chưa tồn tại trong hệ thống.
+- password: string, bắt buộc. Mật khẩu gốc do người dùng nhập; backend hash trước khi lưu.
+- full_name: string, bắt buộc. Tên hiển thị của người dùng.
+
+Ví dụ request:
 {
-  "email": "user@example.com",
+  "email": "buyer@example.com",
   "password": "StrongPass@123",
   "full_name": "Nguyen Van A"
 }
-Status: 201, 409, 422
 
-6.3.2 Gửi OTP xác thực
-- POST /auth/verify-otp
-Mô tả: Xác thực email/số điện thoại bằng OTP sau đăng ký.
-Request:
+Response data ví dụ:
 {
-  "email": "user@example.com",
+  "id": 10,
+  "email": "buyer@example.com",
+  "full_name": "Nguyen Van A",
+  "role": "buyer",
+  "status": "pending_verification"
+}
+
+Tác dụng phụ:
+- Tạo user mới.
+- Gửi OTP xác thực qua email.
+- User cần verify OTP trước khi đăng nhập/hoạt động đầy đủ tùy logic auth.
+
+Status thường gặp: 201, 400, 409, 422.
+
+6.3.2 POST /auth/verify-otp
+Mục đích: xác thực OTP sau đăng ký.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email đã đăng ký.
+- otp: string, bắt buộc. Mã OTP người dùng nhận qua email.
+
+Ví dụ request:
+{
+  "email": "buyer@example.com",
   "otp": "123456"
 }
-Status: 200, 400, 404, 422
 
-6.3.3 Đăng nhập
-- POST /auth/login
-Mô tả: Xác thực và cấp access_token + refresh_token.
-Request:
+Response data ví dụ:
 {
-  "email": "user@example.com",
+  "verified": true
+}
+
+Tác dụng phụ:
+- Cập nhật email_verified_at.
+- Chuyển trạng thái user sang active nếu OTP hợp lệ.
+
+Status thường gặp: 200, 400, 404, 422.
+
+6.3.3 POST /auth/resend-verification-otp
+Mục đích: gửi lại OTP xác thực email cho tài khoản chưa xác thực.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email cần gửi lại OTP.
+
+Ví dụ request:
+{
+  "email": "buyer@example.com"
+}
+
+Response data ví dụ:
+{
+  "sent": true
+}
+
+Tác dụng phụ:
+- Tạo OTP mới hoặc cập nhật OTP hiện tại.
+- Gửi email OTP mới.
+
+Status thường gặp: 200, 400, 404, 422.
+
+6.3.4 POST /auth/login
+Mục đích: xác thực email/password và cấp access token, refresh token.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email đăng nhập.
+- password: string, bắt buộc. Mật khẩu người dùng.
+
+Ví dụ request:
+{
+  "email": "buyer@example.com",
   "password": "StrongPass@123"
 }
-Status: 200, 401, 422
 
-6.3.4 Làm mới token
-- POST /auth/refresh
-Mô tả: Cấp access token mới bằng refresh token.
-Request:
+Response data ví dụ:
 {
-  "refresh_token": "..."
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {
+    "id": 10,
+    "email": "buyer@example.com",
+    "full_name": "Nguyen Van A",
+    "role": "buyer"
+  }
 }
-Ghi chú:
-Trong môi trường production, refresh token nên được gửi qua HttpOnly Cookie để giảm rủi ro XSS.
-Có thể áp dụng cơ chế refresh token rotation để tăng bảo mật.
-Status: 200, 401
 
-6.3.5 Đăng xuất
-- POST /auth/logout
-Mô tả: Thu hồi refresh token hiện tại.
-Ghi chú:
-Refresh token được lưu và thu hồi khi logout để tránh reuse.
-Status: 200, 401
+Ý nghĩa trường response:
+- access_token: token ngắn hạn dùng trong header Authorization.
+- refresh_token: token dùng để xin access token mới.
+- token_type: loại token, thường là bearer.
+- user: thông tin cơ bản của tài khoản đăng nhập.
 
-6.3.6 Quên mật khẩu
-- POST /auth/forgot-password
-Mô tả: Gửi OTP/link đặt lại mật khẩu.
-Request:
+Status thường gặp: 200, 400, 401, 403, 422.
+
+6.3.5 POST /auth/refresh
+Mục đích: cấp access token mới từ refresh token.
+
+Yêu cầu xác thực: không cần access token, nhưng cần refresh_token hợp lệ trong body.
+
+Request body:
+- refresh_token: string, bắt buộc. Refresh token đã được cấp khi login.
+
+Ví dụ request:
 {
-  "email": "user@example.com"
+  "refresh_token": "eyJ..."
 }
-Status: 200, 404
 
-6.3.7 Đặt lại mật khẩu
-- POST /auth/reset-password
-Mô tả: Đặt lại mật khẩu bằng OTP hoặc reset token.
-Request:
+Response data ví dụ:
 {
-  "email": "user@example.com",
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type": "bearer"
+}
+
+Ghi chú bảo mật:
+- Trong prototype, frontend lưu token ở localStorage.
+- Production nên dùng HttpOnly Cookie hoặc BFF pattern để giảm rủi ro XSS.
+- Refresh token revocation hiện có thể là in-memory nên sẽ mất khi server restart.
+
+Status thường gặp: 200, 401, 422.
+
+6.3.6 POST /auth/logout
+Mục đích: thu hồi refresh token hiện tại.
+
+Yêu cầu xác thực: thường dùng refresh_token trong body; access token có thể được frontend xóa cục bộ.
+
+Request body:
+- refresh_token: string, bắt buộc. Token cần thu hồi.
+
+Ví dụ request:
+{
+  "refresh_token": "eyJ..."
+}
+
+Response data ví dụ:
+{
+  "logged_out": true
+}
+
+Tác dụng phụ:
+- Đưa refresh token vào danh sách revoked token.
+- Frontend xóa access_token và refresh_token khỏi storage.
+
+Status thường gặp: 200, 401, 422.
+
+6.3.7 POST /auth/forgot-password
+Mục đích: gửi OTP đặt lại mật khẩu cho email.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email của tài khoản cần đặt lại mật khẩu.
+
+Ví dụ request:
+{
+  "email": "buyer@example.com"
+}
+
+Response data ví dụ:
+{
+  "sent": true
+}
+
+Tác dụng phụ:
+- Tạo OTP reset password.
+- Gửi email chứa OTP.
+
+Status thường gặp: 200, 404, 422.
+
+6.3.8 POST /auth/reset-password
+Mục đích: đặt lại mật khẩu bằng OTP.
+
+Yêu cầu xác thực: không cần token.
+
+Request body:
+- email: string, bắt buộc. Email tài khoản.
+- otp: string, bắt buộc. OTP reset password.
+- new_password: string, bắt buộc. Mật khẩu mới.
+
+Ví dụ request:
+{
+  "email": "buyer@example.com",
   "otp": "123456",
   "new_password": "NewPass@123"
 }
-Status: 200, 400, 404, 422
 
-6.4 Nhóm API người dùng (Buyer)
-
-6.4.1 Hồ sơ người dùng
-- GET /users/me
-- PUT /users/me
-Mô tả: Xem/cập nhật thông tin cá nhân.
-Status: 200, 401, 422
-
-6.4.2 Danh mục
-- GET /categories
-Mô tả: Lấy danh sách danh mục sản phẩm.
-Status: 200
-
-6.4.3 Sản phẩm
-- GET /products
-Query: keyword, q, search_type, category_id, shop_id, min_price, max_price, sort, page, page_size
-sort: price_asc | price_desc | newest | best_selling
-search_type: keyword | ai
-Mô tả: Tìm kiếm, lọc, sắp xếp sản phẩm.
-Ghi chú:
-Có thể dùng endpoint này cho cả tìm kiếm thường và tìm kiếm AI (q + search_type=ai) để frontend thống nhất luồng hiển thị danh sách.
-Status: 200
-
-- GET /products/{id}
-Mô tả: Lấy chi tiết sản phẩm.
-Status: 200, 404
-
-- POST /products/intent-search
-Mô tả: Tìm kiếm theo ý định người dùng (tích hợp AI trong luồng nghiệp vụ).
-Ghi chú:
-Nếu hệ thống không phân tích được intent, hệ thống fallback sang keyword search.
-AI sử dụng embedding để truy xuất ngữ cảnh (RAG).
-Request:
+Response data ví dụ:
 {
-  "query": "laptop chơi game dưới 20 triệu",
+  "reset": true
+}
+
+Tác dụng phụ:
+- Hash và lưu mật khẩu mới.
+- OTP đã dùng không nên được dùng lại.
+
+Status thường gặp: 200, 400, 404, 422.
+
+6.4 Nhóm API Public và Buyer
+
+6.4.1 GET /categories
+Mục đích: lấy danh sách danh mục sản phẩm.
+
+Yêu cầu xác thực: public, không cần token.
+
+Query params: không có.
+
+Response data ví dụ:
+{
+  "items": [
+    { "id": 1, "name": "Electronics", "parent_id": null },
+    { "id": 2, "name": "Laptop", "parent_id": 1 }
+  ]
+}
+
+Ý nghĩa trường:
+- id: mã danh mục.
+- name: tên danh mục.
+- parent_id: danh mục cha, null nếu là danh mục gốc.
+
+Status thường gặp: 200.
+
+6.4.2 GET /products
+Mục đích: tìm kiếm/lọc danh sách sản phẩm và trả kèm kết quả shop phù hợp.
+
+Yêu cầu xác thực: public, không cần token.
+
+Query params:
+- q: string, tùy chọn. Chuỗi tìm kiếm chính từ frontend.
+- keyword: string, tùy chọn. Alias cũ của q.
+- search_type: string, tùy chọn, mặc định keyword. Giữ để tương thích UI; frontend có thể truyền keyword hoặc intent.
+- category_id: integer, tùy chọn. Lọc sản phẩm theo danh mục.
+- shop_id: integer, tùy chọn. Lọc sản phẩm trong một shop.
+- min_price: float, tùy chọn. Giá tối thiểu.
+- max_price: float, tùy chọn. Giá tối đa.
+- min_rating: integer, tùy chọn. Điểm đánh giá trung bình tối thiểu.
+- sort: string, tùy chọn. Cách sắp xếp; hỗ trợ price_asc, price_desc, top_sales, popular, newest.
+- page: integer, mặc định 1. Trang sản phẩm.
+- page_size: integer, mặc định 20. Số sản phẩm mỗi trang.
+- shop_page: integer, mặc định 1. Trang kết quả shop.
+- shop_page_size: integer, mặc định 4. Số shop mỗi trang.
+
+Ví dụ request:
+GET /products?q=phone&min_price=1000000&max_price=5000000&sort=price_asc&page=1&page_size=20
+
+Response data ví dụ:
+{
+  "shops": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Tech Store",
+        "description": "Cửa hàng công nghệ",
+        "product_count": 20,
+        "sold_count": 50,
+        "top_product_image": "https://example.com/image.jpg"
+      }
+    ],
+    "meta": { "page": 1, "page_size": 4, "total": 1, "total_pages": 1 }
+  },
+  "products": {
+    "items": [
+      {
+        "id": 100,
+        "name": "Smart Phone A",
+        "price": 3500000,
+        "stock": 10,
+        "primary_image": "https://example.com/phone.jpg",
+        "shop_id": 1,
+        "shop_name": "Tech Store",
+        "category_id": 2,
+        "category": { "id": 2, "name": "Phones" },
+        "avg_rating": 4.5,
+        "review_count": 12,
+        "sold_count": 30
+      }
+    ],
+    "meta": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 }
+  },
+  "items": [],
+  "meta": {}
+}
+
+Ý nghĩa response:
+- shops: danh sách shop phù hợp với truy vấn.
+- products: danh sách sản phẩm phù hợp với truy vấn.
+- items/meta: alias legacy cho products.items/products.meta để tương thích code cũ.
+
+Status thường gặp: 200, 422.
+
+6.4.3 POST /products/intent-search
+Mục đích: tìm kiếm theo ý định tự nhiên của người dùng.
+
+Yêu cầu xác thực: public hoặc auth đều dùng được tùy logic service; không bắt buộc token ở router hiện tại.
+
+Request body:
+- query: string, bắt buộc. Câu truy vấn tự nhiên, ví dụ "tai nghe chống ồn giá rẻ".
+- page: integer, mặc định 1. Trang sản phẩm.
+- page_size: integer, mặc định 20. Số sản phẩm mỗi trang.
+
+Ví dụ request:
+{
+  "query": "laptop học lập trình dưới 20 triệu",
   "page": 1,
   "page_size": 20
 }
-Status: 200, 422
 
-- GET /products/{id}/reviews
-Mô tả: Lấy danh sách đánh giá của sản phẩm.
-Status: 200, 404
+Response data: cùng cấu trúc hoặc tương thích với danh sách sản phẩm tìm kiếm.
 
-6.4.4 Đánh giá sản phẩm
-- POST /reviews
-Mô tả: Gửi đánh giá sản phẩm đã mua.
-Request:
+Ghi chú nghiệp vụ:
+- Nếu không phân tích được intent, hệ thống fallback về keyword search.
+- Endpoint này phục vụ chế độ tìm kiếm intent tách biệt với keyword mode.
+
+Status thường gặp: 200, 422.
+
+6.4.4 GET /products/recommend
+Mục đích: lấy danh sách sản phẩm gợi ý.
+
+Yêu cầu xác thực: public theo router hiện tại.
+
+Query params:
+- product_id: integer, tùy chọn. Gợi ý sản phẩm liên quan đến một sản phẩm cụ thể nếu có.
+- limit: integer, tùy chọn. Số lượng sản phẩm gợi ý.
+
+Response data ví dụ:
 {
-  "product_id": 1001,
-  "rating": 5,
-  "comment": "Sản phẩm tốt"
+  "items": [
+    { "id": 101, "name": "Related Product", "price": 1200000, "primary_image": "https://example.com/p.jpg" }
+  ]
 }
-Ghi chú:
-Chỉ cho phép đánh giá nếu người dùng đã mua sản phẩm và đơn hàng liên quan ở trạng thái delivered.
-Status: 201, 403, 404, 422
 
-6.4.5 Cửa hàng
-- GET /shops/{id}
-Mô tả: Xem thông tin cửa hàng.
-Status: 200, 404
+Status thường gặp: 200.
 
-6.4.6 Giỏ hàng
-- GET /cart
-Mô tả: Lấy giỏ hàng hiện tại.
-Ghi chú:
-Response nên trả cả thông tin cơ bản của sản phẩm trong từng item (tên, giá, ảnh chính, tồn kho khả dụng) để giảm số lượng request từ frontend.
-Status: 200, 401
+6.4.5 GET /products/{id}
+Mục đích: lấy chi tiết một sản phẩm.
 
-- POST /cart/items
-Mô tả: Thêm sản phẩm vào giỏ.
-Request:
+Yêu cầu xác thực: public, không cần token.
+
+Path params:
+- id: integer, bắt buộc. ID sản phẩm.
+
+Response data ví dụ:
 {
-  "product_id": 1001,
-  "quantity": 2
+  "id": 100,
+  "name": "Smart Phone A",
+  "description": "Mô tả sản phẩm",
+  "price": 3500000,
+  "stock": 10,
+  "attributes": { "brand": "A", "color": "black" },
+  "images": [
+    { "id": 1, "url": "https://example.com/phone.jpg", "is_primary": true }
+  ],
+  "videos": [],
+  "shop": { "id": 1, "name": "Tech Store" },
+  "category": { "id": 2, "name": "Phones" },
+  "avg_rating": 4.5,
+  "review_count": 12
 }
-Status: 201, 400, 404, 422
 
-- PUT /cart/items/{item_id}
-Mô tả: Cập nhật số lượng sản phẩm trong giỏ.
-Request:
+Status thường gặp: 200, 404.
+
+6.4.6 GET /products/{id}/reviews
+Mục đích: lấy danh sách đánh giá của sản phẩm.
+
+Yêu cầu xác thực: public, không cần token.
+
+Path params:
+- id: integer, bắt buộc. ID sản phẩm.
+
+Response data ví dụ:
 {
-  "quantity": 3
+  "items": [
+    {
+      "id": 1,
+      "user_id": 10,
+      "rating": 5,
+      "title": "Tốt",
+      "comment": "Sản phẩm dùng ổn",
+      "verified_purchase": true,
+      "created_at": "2026-05-12T10:00:00"
+    }
+  ]
 }
-Status: 200, 404, 422
 
-- DELETE /cart/items/{item_id}
-Mô tả: Xóa sản phẩm khỏi giỏ.
-Status: 204, 404
+Status thường gặp: 200, 404.
 
-6.4.7 Đơn hàng
-- POST /orders
-Mô tả: Tạo đơn hàng từ giỏ hàng.
-Status: 201, 400, 401, 422
+6.4.7 GET /shops
+Mục đích: lấy danh sách shop public và hỗ trợ tìm kiếm shop.
 
-- GET /orders/my
-Query: status, from_date, to_date, page, page_size
-Mô tả: Lấy danh sách đơn hàng của tôi.
-Ghi chú:
-Cho phép lọc theo trạng thái đơn hàng (pending, processing, shipping, delivered, cancelled) để thuận tiện tra cứu lịch sử mua hàng.
-Status: 200, 401
+Yêu cầu xác thực: public, không cần token.
 
-- GET /orders/{id}
-Mô tả: Lấy chi tiết đơn hàng.
-Status: 200, 401, 403, 404
+Query params:
+- q: string, tùy chọn. Từ khóa tìm shop.
+- page: integer, mặc định 1. Trang kết quả.
+- page_size: integer, mặc định 12. Số shop mỗi trang.
 
-- POST /orders/{id}/cancel
-Mô tả: Hủy đơn hàng khi còn ở trạng thái cho phép.
-Status: 200, 400, 401, 403, 404
-
-6.4.8 Thanh toán (FAKE)
-- POST /payments/{order_id}/pay
-Mô tả: Mô phỏng thanh toán cho đơn hàng.
-Luồng: Tạo payment pending -> random success/failed -> cập nhật Payments.status và Orders.payment_status.
-Ghi chú:
-Trạng thái thanh toán được mô phỏng và có thể dựa trên random hoặc input test để phục vụ kiểm thử.
-API thanh toán có thể hỗ trợ idempotency key để tránh thanh toán lặp lại.
-Idempotency key thường được truyền qua header X-Idempotency-Key.
-Status: 200, 400, 404
-
-- GET /payments/{order_id}
-Mô tả: Xem trạng thái thanh toán của đơn hàng.
-Status: 200, 404
-
-6.4.9 Chat
-- POST /chat/conversations
-Mô tả: Tạo hội thoại buyer-seller.
-Status: 201, 400, 404
-
-- GET /chat/conversations
-Mô tả: Lấy danh sách hội thoại của người dùng.
-Status: 200, 401
-
-- GET /chat/conversations/{conversation_id}/messages
-Mô tả: Lấy danh sách tin nhắn theo hội thoại.
-Status: 200, 401, 403, 404
-
-- POST /chat/conversations/{conversation_id}/messages
-Mô tả: Gửi tin nhắn trong hội thoại.
-Ghi chú: nếu hội thoại bật bot và cấu hình hợp lệ, hệ thống có thể sinh phản hồi tự động.
-Hệ thống có thể mở rộng WebSocket để hỗ trợ realtime chat (bao gồm trạng thái typing).
-Status: 201, 401, 403, 404, 422
-
-- PATCH /chat/conversations/{conversation_id}/read
-Mô tả: Đánh dấu đã đọc tin nhắn trong hội thoại.
-Status: 200, 401, 403, 404
-
-6.4.10 Báo cáo vi phạm
-- POST /reports
-Mô tả: Gửi báo cáo sản phẩm/người bán.
-Request:
+Response data ví dụ:
 {
-  "target_type": "product",
-  "target_id": 1001,
-  "reason": "Nội dung sai sự thật"
+  "items": [
+    { "id": 1, "name": "Tech Store", "description": "Cửa hàng công nghệ", "status": "active" }
+  ],
+  "meta": { "page": 1, "page_size": 12, "total": 1, "total_pages": 1 }
 }
-Status: 201, 401, 404, 422
 
-6.4.11 Thông báo
-- GET /notifications
-Mô tả: Lấy danh sách thông báo cá nhân.
-Ghi chú:
-Thông báo được tạo khi cập nhật trạng thái đơn hàng, thanh toán, và các sự kiện chat quan trọng.
-Status: 200, 401
+Status thường gặp: 200.
 
-- PATCH /notifications/{id}/read
-Mô tả: Đánh dấu một thông báo đã đọc.
-Status: 200, 401, 404
+6.4.8 GET /shops/{id}
+Mục đích: lấy chi tiết shop public.
 
-- PATCH /notifications/read-all
-Mô tả: Đánh dấu tất cả thông báo đã đọc.
-Status: 200, 401
+Yêu cầu xác thực: public, không cần token.
 
-6.4.12 Đăng ký mở cửa hàng
-- POST /seller-requests
-Mô tả: Buyer gửi yêu cầu đăng ký trở thành seller.
-Request:
+Path params:
+- id: integer, bắt buộc. ID shop.
+
+Response data ví dụ:
+{
+  "id": 1,
+  "name": "Tech Store",
+  "description": "Cửa hàng công nghệ",
+  "status": "active"
+}
+
+Status thường gặp: 200, 404.
+
+6.4.9 GET /users/me
+Mục đích: lấy thông tin tài khoản hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Response data ví dụ:
+{
+  "id": 10,
+  "email": "buyer@example.com",
+  "full_name": "Nguyen Van A",
+  "role": "buyer",
+  "status": "active"
+}
+
+Status thường gặp: 200, 401.
+
+6.4.10 PUT /users/me
+Mục đích: cập nhật thông tin cá nhân cơ bản.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- full_name: string, bắt buộc. Tên hiển thị mới.
+
+Ví dụ request:
+{
+  "full_name": "Nguyen Van B"
+}
+
+Response data ví dụ:
+{
+  "id": 10,
+  "email": "buyer@example.com",
+  "full_name": "Nguyen Van B",
+  "role": "buyer"
+}
+
+Status thường gặp: 200, 401, 422.
+
+6.4.11 PATCH /users/me/password
+Mục đích: đổi mật khẩu khi người dùng đang đăng nhập.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- current_password: string, bắt buộc. Mật khẩu hiện tại để xác minh.
+- new_password: string, bắt buộc. Mật khẩu mới.
+
+Ví dụ request:
+{
+  "current_password": "OldPass@123",
+  "new_password": "NewPass@123"
+}
+
+Response data ví dụ:
+{
+  "changed": true
+}
+
+Status thường gặp: 200, 400, 401, 422.
+
+6.4.12 DELETE /users/me
+Mục đích: xóa mềm tài khoản hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- current_password: string, bắt buộc. Mật khẩu hiện tại để xác nhận thao tác nhạy cảm.
+
+Ví dụ request:
+{
+  "current_password": "StrongPass@123"
+}
+
+Response: 204 No Content hoặc response thành công tùy service.
+
+Tác dụng phụ:
+- Đánh dấu tài khoản deleted/deleted_at.
+- Frontend nên xóa token cục bộ sau khi xóa tài khoản.
+
+Status thường gặp: 204, 400, 401, 422.
+
+6.4.13 POST /seller-requests
+Mục đích: buyer gửi yêu cầu đăng ký mở cửa hàng.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- shop_name: string, bắt buộc. Tên cửa hàng mong muốn.
+- description: string, bắt buộc. Mô tả cửa hàng.
+- contact: string, bắt buộc. Thông tin liên hệ.
+
+Ví dụ request:
 {
   "shop_name": "Shop ABC",
   "description": "Cửa hàng đồ công nghệ",
   "contact": "0123456789"
 }
-Status: 201, 401, 409, 422
 
-- GET /seller-requests/me
-Mô tả: Xem trạng thái yêu cầu mở cửa hàng của tài khoản hiện tại.
-Status: 200, 401
+Response data ví dụ:
+{
+  "id": 5,
+  "status": "pending",
+  "shop_name": "Shop ABC"
+}
 
-6.5 Nhóm API người bán (Seller)
+Tác dụng phụ:
+- Tạo seller request trạng thái pending.
+- Admin có thể duyệt/từ chối trong admin console.
 
-6.5.1 Cửa hàng
-- GET /seller/shop
-- PUT /seller/shop
-Mô tả: Xem/cập nhật thông tin cửa hàng.
-Status: 200, 401, 403, 422
+Status thường gặp: 201, 400, 401, 409, 422.
 
-6.5.2 Sản phẩm
-- GET /seller/products
-- POST /seller/products
-- PUT /seller/products/{id}
-- DELETE /seller/products/{id}
-Mô tả: Quản lý sản phẩm của cửa hàng.
-Status: 200, 201, 204, 401, 403, 404, 422
+6.4.14 GET /seller-requests/me
+Mục đích: xem trạng thái yêu cầu mở shop của tài khoản hiện tại.
 
-6.5.3 Hình ảnh sản phẩm
-- POST /seller/products/{id}/images
-- DELETE /seller/products/images/{id}
-Mô tả: Thêm/xóa hình ảnh sản phẩm.
-Status: 201, 204, 401, 403, 404, 422
+Yêu cầu xác thực: cần Bearer token.
 
-6.5.4 Đơn hàng
-- GET /seller/orders
-Mô tả: Lấy danh sách đơn hàng của shop.
-Status: 200, 401, 403
+Response data ví dụ:
+{
+  "id": 5,
+  "shop_name": "Shop ABC",
+  "status": "pending",
+  "reason": ""
+}
 
-- GET /seller/orders/{id}
-Mô tả: Lấy chi tiết đơn hàng của shop.
-Status: 200, 401, 403, 404
+Status thường gặp: 200, 401, 404.
 
-- PATCH /seller/orders/{id}
-Mô tả: Cập nhật trạng thái xử lý đơn hàng.
-Request:
+6.4.15 POST /reports
+Mục đích: gửi báo cáo vi phạm sản phẩm/shop/user.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- target_type: string, bắt buộc. Loại đối tượng bị báo cáo, ví dụ product, shop hoặc user.
+- target_id: integer, bắt buộc. ID đối tượng bị báo cáo.
+- reason: string, bắt buộc. Lý do báo cáo.
+
+Ví dụ request:
+{
+  "target_type": "product",
+  "target_id": 100,
+  "reason": "Thông tin sản phẩm sai sự thật"
+}
+
+Response data ví dụ:
+{
+  "id": 9,
+  "status": "pending"
+}
+
+Status thường gặp: 201, 400, 401, 404, 422.
+
+6.4.16 GET /notifications
+Mục đích: lấy danh sách thông báo của user hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 1,
+      "content": "Đơn hàng #123 đã được tạo",
+      "type": "order",
+      "channel": "system",
+      "is_read": false,
+      "created_at": "2026-05-12T10:00:00"
+    }
+  ]
+}
+
+Status thường gặp: 200, 401.
+
+6.4.17 PATCH /notifications/{id}/read
+Mục đích: đánh dấu một thông báo là đã đọc hoặc chưa đọc.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- id: integer, bắt buộc. ID notification.
+
+Request body:
+- is_read: boolean, mặc định true. Trạng thái muốn cập nhật.
+
+Ví dụ request:
+{
+  "is_read": true
+}
+
+Response data ví dụ:
+{
+  "id": 1,
+  "is_read": true
+}
+
+Status thường gặp: 200, 401, 403, 404, 422.
+
+6.4.18 PATCH /notifications/read-all
+Mục đích: đánh dấu toàn bộ thông báo của user hiện tại là đã đọc.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body: không có.
+
+Response data ví dụ:
+{
+  "updated": 5
+}
+
+Status thường gặp: 200, 401.
+
+6.4.19 DELETE /notifications/{id}
+Mục đích: xóa một thông báo của user hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- id: integer, bắt buộc. ID notification.
+
+Response: 204 No Content.
+
+Tác dụng phụ:
+- Xóa notification.
+- Có thể phát account event notification_deleted để frontend refetch nếu cần.
+
+Status thường gặp: 204, 401, 403, 404.
+
+6.4.20 GET /cart
+Mục đích: lấy giỏ hàng hiện tại của buyer.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 1,
+      "product_id": 100,
+      "quantity": 2,
+      "product": {
+        "id": 100,
+        "name": "Smart Phone A",
+        "price": 3500000,
+        "stock": 10,
+        "primary_image": "https://example.com/phone.jpg"
+      }
+    }
+  ],
+  "total_price": 7000000
+}
+
+Status thường gặp: 200, 401.
+
+6.4.21 POST /cart/items
+Mục đích: thêm sản phẩm vào giỏ hàng hoặc tăng số lượng nếu đã tồn tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- product_id: integer, bắt buộc. ID sản phẩm cần thêm.
+- quantity: integer, bắt buộc. Số lượng thêm, phải lớn hơn 0.
+
+Ví dụ request:
+{
+  "product_id": 100,
+  "quantity": 2
+}
+
+Response data ví dụ:
+{
+  "id": 1,
+  "product_id": 100,
+  "quantity": 2
+}
+
+Tác dụng phụ:
+- Tạo/cập nhật cart item.
+- Phát account event cart_updated.
+
+Status thường gặp: 201, 400, 401, 404, 422.
+
+6.4.22 PUT /cart/items/{item_id}
+Mục đích: cập nhật số lượng một dòng giỏ hàng.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- item_id: integer, bắt buộc. ID dòng giỏ hàng.
+
+Request body:
+- quantity: integer, bắt buộc. Số lượng mới, phải lớn hơn 0.
+
+Ví dụ request:
+{
+  "quantity": 3
+}
+
+Tác dụng phụ:
+- Cập nhật số lượng.
+- Phát account event cart_updated.
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.4.23 DELETE /cart/items/{item_id}
+Mục đích: xóa một sản phẩm khỏi giỏ hàng.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- item_id: integer, bắt buộc. ID dòng giỏ hàng.
+
+Response: 204 No Content.
+
+Tác dụng phụ:
+- Xóa cart item.
+- Phát account event cart_updated.
+
+Status thường gặp: 204, 401, 403, 404.
+
+6.4.24 POST /orders
+Mục đích: tạo đơn hàng từ toàn bộ giỏ hàng hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- shipping_address: string, bắt buộc. Địa chỉ giao hàng được copy vào đơn.
+
+Ví dụ request:
+{
+  "shipping_address": "Số 1 Đại Cồ Việt, Hà Nội"
+}
+
+Response data ví dụ:
+{
+  "order_id": 123,
+  "status": "pending",
+  "shipping_status": "preparing"
+}
+
+Tác dụng phụ:
+- Tạo Orders và Order_Items.
+- Tính total_price theo giá tại thời điểm checkout.
+- Trừ stock sản phẩm.
+- Xóa cart items đã checkout.
+- Tạo notification cho buyer.
+- Tạo notification cho seller owner của từng shop trong đơn.
+- Phát account events order_created, cart_updated và seller_order_created.
+
+Status thường gặp: 201, 400, 401, 422.
+
+6.4.25 GET /orders/my
+Mục đích: lấy danh sách đơn hàng của buyer hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Query params:
+- status: string, tùy chọn. Lọc theo pending, processing, shipping, delivered hoặc cancelled.
+- from_date: string, tùy chọn. Lọc từ ngày.
+- to_date: string, tùy chọn. Lọc đến ngày.
+- page: integer, mặc định 1.
+- page_size: integer, mặc định 20.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 123,
+      "total_price": 7000000,
+      "status": "pending",
+      "payment_status": "pending",
+      "shipping_address": "Số 1 Đại Cồ Việt, Hà Nội",
+      "created_at": "2026-05-12T10:00:00"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 }
+}
+
+Status thường gặp: 200, 401.
+
+6.4.26 GET /orders/{id}
+Mục đích: lấy chi tiết một đơn hàng thuộc buyer hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- id: integer, bắt buộc. ID đơn hàng.
+
+Response data ví dụ:
+{
+  "id": 123,
+  "total_price": 7000000,
+  "status": "pending",
+  "payment_status": "pending",
+  "shipping_address": "Số 1 Đại Cồ Việt, Hà Nội",
+  "items": [
+    {
+      "product_id": 100,
+      "name": "Smart Phone A",
+      "quantity": 2,
+      "price": 3500000,
+      "shop_id": 1,
+      "shop_name": "Tech Store"
+    }
+  ]
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.4.27 POST /orders/{id}/cancel
+Mục đích: buyer hủy đơn hàng khi còn ở trạng thái cho phép.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- id: integer, bắt buộc. ID đơn hàng.
+
+Request body: không có.
+
+Response data ví dụ:
+{
+  "id": 123,
+  "status": "cancelled"
+}
+
+Tác dụng phụ:
+- Chỉ cho phép hủy khi status là pending hoặc processing.
+- Hoàn lại stock cho các sản phẩm trong đơn.
+- Tạo notification và phát account event order_updated.
+
+Status thường gặp: 200, 400, 401, 403, 404.
+
+6.4.28 POST /payments/{order_id}/pay
+Mục đích: ghi nhận hoặc mô phỏng thanh toán cho đơn hàng.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- order_id: integer, bắt buộc. ID đơn hàng cần thanh toán.
+
+Request body: tùy implementation hiện tại; có thể không cần body trong mô phỏng.
+
+Response data ví dụ:
+{
+  "order_id": 123,
+  "payment_status": "paid",
+  "payment": {
+    "id": 1,
+    "method": "ONLINE",
+    "status": "success",
+    "transaction_id": "TXN-123"
+  }
+}
+
+Tác dụng phụ:
+- Tạo/cập nhật payment.
+- Cập nhật Orders.payment_status.
+- Có thể tạo notification payment.
+
+Status thường gặp: 200, 400, 401, 403, 404.
+
+6.4.29 GET /payments/{order_id}
+Mục đích: xem trạng thái thanh toán của đơn hàng.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- order_id: integer, bắt buộc. ID đơn hàng.
+
+Response data ví dụ:
+{
+  "order_id": 123,
+  "payment_status": "pending",
+  "payments": [
+    { "id": 1, "method": "ONLINE", "status": "pending", "transaction_id": null }
+  ]
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.4.30 POST /reviews
+Mục đích: tạo hoặc cập nhật đánh giá sản phẩm của buyer.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- product_id: integer, bắt buộc. ID sản phẩm được đánh giá.
+- rating: integer, bắt buộc. Số sao từ 1 đến 5.
+- title: string, tùy chọn. Tiêu đề đánh giá.
+- comment: string, tùy chọn. Nội dung đánh giá.
+
+Ví dụ request:
+{
+  "product_id": 100,
+  "rating": 5,
+  "title": "Rất tốt",
+  "comment": "Sản phẩm đúng mô tả"
+}
+
+Response data ví dụ:
+{
+  "id": 7,
+  "product_id": 100,
+  "rating": 5,
+  "title": "Rất tốt",
+  "comment": "Sản phẩm đúng mô tả",
+  "verified_purchase": true
+}
+
+Quy tắc nghiệp vụ:
+- Buyer phải có đơn delivered chứa sản phẩm.
+- Mỗi user/product chỉ có một review; gửi lại sẽ cập nhật review cũ.
+
+Status thường gặp: 201, 400, 401, 403, 404, 422.
+
+6.4.31 POST /chat/conversations
+Mục đích: tạo hoặc lấy hội thoại giữa buyer và seller/shop.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Request body:
+- shop_id: integer, tùy chọn. ID shop muốn chat; đây là cách ưu tiên.
+- seller_id: integer, tùy chọn. ID seller, dùng cho tương thích luồng cũ.
+
+Lưu ý: cần ít nhất một trong hai trường shop_id hoặc seller_id. Nếu có shop_id, backend tự resolve seller_id từ owner của shop.
+
+Ví dụ request:
+{
+  "shop_id": 1,
+  "seller_id": null
+}
+
+Response data ví dụ:
+{
+  "id": 20
+}
+
+Tác dụng phụ:
+- Nếu chưa có conversation, tạo conversation mới.
+- Phát chat event chat_conversation cho seller.
+
+Status thường gặp: 201, 400, 401, 404, 422.
+
+6.4.32 GET /chat/conversations
+Mục đích: lấy danh sách hội thoại của buyer hiện tại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 20,
+      "buyer_id": 10,
+      "seller_id": 3,
+      "seller_name": "Seller A",
+      "shop_id": 1,
+      "shop_name": "Tech Store",
+      "is_bot_enabled": false,
+      "last_message": "Xin chào",
+      "last_message_at": "2026-05-12T10:00:00",
+      "unread_count": 1
+    }
+  ]
+}
+
+Status thường gặp: 200, 401.
+
+6.4.33 GET /chat/conversations/{conversation_id}/messages
+Mục đích: lấy tin nhắn trong một hội thoại buyer được phép truy cập.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 100,
+      "conversation_id": 20,
+      "sender_id": 10,
+      "content": "Shop còn hàng không?",
+      "is_bot": false,
+      "is_read": true,
+      "created_at": "2026-05-12T10:00:00"
+    }
+  ]
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.4.34 POST /chat/conversations/{conversation_id}/messages
+Mục đích: buyer gửi tin nhắn trong hội thoại.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Request body:
+- content: string, bắt buộc. Nội dung tin nhắn.
+
+Ví dụ request:
+{
+  "content": "Shop còn hàng không?"
+}
+
+Response data ví dụ:
+{
+  "id": 101
+}
+
+Tác dụng phụ:
+- Tạo message mới.
+- Phát WebSocket chat_message cho seller.
+- Không tạo notification row trong bảng Notifications.
+
+Status thường gặp: 201, 401, 403, 404, 422.
+
+6.4.35 PATCH /chat/conversations/{conversation_id}/read
+Mục đích: đánh dấu các tin nhắn chưa đọc từ phía seller/bot trong hội thoại là đã đọc.
+
+Yêu cầu xác thực: cần Bearer token.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Request body: không có.
+
+Response data ví dụ:
+{
+  "updated": 3
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.5 Nhóm API Seller
+Tất cả endpoint trong nhóm này có prefix /seller và yêu cầu user có role seller hoặc admin.
+
+6.5.1 GET /seller/shop
+Mục đích: lấy thông tin shop của seller hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Response data ví dụ:
+{
+  "id": 1,
+  "owner_id": 3,
+  "name": "Tech Store",
+  "description": "Cửa hàng công nghệ",
+  "status": "active"
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.5.2 PUT /seller/shop
+Mục đích: cập nhật thông tin shop của seller hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Request body:
+- name: string, bắt buộc. Tên shop.
+- description: string, tùy chọn. Mô tả shop.
+
+Ví dụ request:
+{
+  "name": "Tech Store New",
+  "description": "Cửa hàng công nghệ chính hãng"
+}
+
+Response data ví dụ:
+{
+  "id": 1,
+  "name": "Tech Store New",
+  "description": "Cửa hàng công nghệ chính hãng",
+  "status": "active"
+}
+
+Status thường gặp: 200, 401, 403, 422.
+
+6.5.3 GET /seller/products
+Mục đích: lấy danh sách sản phẩm thuộc shop của seller hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Query params:
+- page: integer, mặc định 1.
+- page_size: integer, mặc định 20.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 100,
+      "name": "Smart Phone A",
+      "description": "Mô tả",
+      "price": 3500000,
+      "stock": 10,
+      "category_id": 2,
+      "primary_image": "https://example.com/phone.jpg"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 }
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.5.4 POST /seller/products
+Mục đích: tạo sản phẩm mới cho shop hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Request body:
+- name: string, bắt buộc. Tên sản phẩm.
+- description: string, tùy chọn. Mô tả sản phẩm.
+- price: float, bắt buộc. Giá bán.
+- stock: integer, bắt buộc. Số lượng tồn kho.
+- category_id: integer hoặc null, tùy chọn. Danh mục sản phẩm.
+
+Ví dụ request:
+{
+  "name": "Smart Phone A",
+  "description": "Điện thoại thông minh",
+  "price": 3500000,
+  "stock": 10,
+  "category_id": 2
+}
+
+Response data ví dụ:
+{
+  "id": 100,
+  "shop_id": 1,
+  "name": "Smart Phone A",
+  "price": 3500000,
+  "stock": 10,
+  "category_id": 2
+}
+
+Ghi chú:
+- Nếu category_id không tồn tại, backend trả lỗi 400 rõ ràng thay vì lỗi khóa ngoại DB.
+
+Status thường gặp: 201, 400, 401, 403, 422.
+
+6.5.5 PUT /seller/products/{id}
+Mục đích: cập nhật sản phẩm thuộc shop hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID sản phẩm.
+
+Request body: giống POST /seller/products.
+
+Ví dụ request:
+{
+  "name": "Smart Phone A 2026",
+  "description": "Bản nâng cấp",
+  "price": 3900000,
+  "stock": 15,
+  "category_id": 2
+}
+
+Quy tắc:
+- Sản phẩm phải thuộc shop của seller hiện tại.
+- category_id nếu truyền phải tồn tại.
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.5.6 DELETE /seller/products/{id}
+Mục đích: xóa mềm sản phẩm thuộc shop hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID sản phẩm.
+
+Response: 204 No Content.
+
+Tác dụng phụ:
+- Cập nhật deleted_at của Product.
+- Sản phẩm không còn xuất hiện trong catalog public.
+
+Status thường gặp: 204, 401, 403, 404.
+
+6.5.7 POST /seller/products/{id}/images
+Mục đích: thêm ảnh URL cho sản phẩm.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID sản phẩm.
+
+Query params:
+- url: string, bắt buộc. URL ảnh.
+- is_primary: boolean, mặc định false. Có đặt làm ảnh chính không.
+
+Ví dụ request:
+POST /seller/products/100/images?url=https://example.com/a.jpg&is_primary=true
+
+Response data ví dụ:
+{
+  "id": 5,
+  "product_id": 100,
+  "url": "https://example.com/a.jpg",
+  "is_primary": true
+}
+
+Status thường gặp: 201, 400, 401, 403, 404, 422.
+
+6.5.8 PATCH /seller/products/images/{id}
+Mục đích: cập nhật trạng thái ảnh chính của một ảnh sản phẩm.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID ảnh.
+
+Request body:
+- is_primary: boolean, bắt buộc. Trạng thái ảnh chính.
+
+Ví dụ request:
+{
+  "is_primary": true
+}
+
+Response data ví dụ:
+{
+  "id": 5,
+  "is_primary": true
+}
+
+Status thường gặp: 200, 401, 403, 404, 422.
+
+6.5.9 DELETE /seller/products/images/{id}
+Mục đích: xóa ảnh sản phẩm.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID ảnh.
+
+Response: 204 No Content.
+
+Status thường gặp: 204, 401, 403, 404.
+
+6.5.10 GET /seller/orders
+Mục đích: lấy danh sách đơn hàng có sản phẩm thuộc shop của seller hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Query params:
+- page: integer, mặc định 1.
+- page_size: integer, mặc định 20.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 123,
+      "buyer_id": 10,
+      "buyer_name": "Nguyen Van A",
+      "status": "pending",
+      "payment_status": "pending",
+      "total_price": 3500000,
+      "items": [
+        { "product_id": 100, "name": "Smart Phone A", "quantity": 1, "price": 3500000 }
+      ]
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 }
+}
+
+Ghi chú:
+- Danh sách chỉ gồm các đơn có ít nhất một item thuộc shop hiện tại.
+- items trong response đã được lọc theo shop.
+- total_price trong seller response nên hiểu là subtotal của shop, không nhất thiết là tổng tiền toàn bộ order buyer.
+
+Status thường gặp: 200, 401, 403.
+
+6.5.11 GET /seller/orders/{id}
+Mục đích: lấy chi tiết seller-visible của một đơn hàng.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID order.
+
+Response data ví dụ:
+{
+  "id": 123,
+  "buyer": { "id": 10, "full_name": "Nguyen Van A", "email": "buyer@example.com" },
+  "status": "pending",
+  "payment_status": "pending",
+  "shipping_address": "Số 1 Đại Cồ Việt, Hà Nội",
+  "items": [
+    { "product_id": 100, "name": "Smart Phone A", "quantity": 1, "price": 3500000 }
+  ],
+  "shop_total_price": 3500000
+}
+
+Quy tắc:
+- Seller chỉ xem được order có item thuộc shop của mình.
+- Items trả về chỉ gồm sản phẩm của shop hiện tại.
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.5.12 PATCH /seller/orders/{id}
+Mục đích: cập nhật trạng thái xử lý đơn hàng.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID order.
+
+Request body:
+- status: string, bắt buộc. Trạng thái mới.
+
+Ví dụ request:
 {
   "status": "processing"
 }
-Ghi chú:
-API cần validate state machine của đơn hàng, ví dụ không cho phép chuyển từ cancelled sang processing.
-Luồng chuyển trạng thái gợi ý: pending -> processing -> shipping -> delivered; pending/processing -> cancelled (theo điều kiện nghiệp vụ).
-Với trạng thái shipping -> cancelled, mặc định không cho phép; nếu hỗ trợ cần qua luồng hoàn/hủy giao hàng riêng.
-Status: 200, 400, 401, 403, 404
 
-- PATCH /seller/orders/{id}/shipping
-Mô tả: Cập nhật trạng thái vận chuyển thủ công (FAKE).
-Request:
+Trạng thái hợp lệ:
+- pending -> processing hoặc cancelled.
+- processing -> shipping hoặc cancelled.
+- shipping -> delivered.
+
+Response data ví dụ:
+{
+  "id": 123,
+  "status": "processing"
+}
+
+Tác dụng phụ:
+- Cập nhật Orders.status.
+- Tạo notification cho buyer.
+- Phát account event order_updated cho buyer.
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.5.13 PATCH /seller/orders/{id}/shipping
+Mục đích: cập nhật shipping_status và shipping_note theo luồng legacy.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- id: integer, bắt buộc. ID order.
+
+Request body:
+- shipping_status: string, bắt buộc. Trạng thái vận chuyển legacy.
+- shipping_note: string, tùy chọn. Ghi chú vận chuyển.
+
+Ví dụ request:
 {
   "shipping_status": "shipping",
   "shipping_note": "Đang giao tại Hà Nội"
 }
-Status: 200, 400, 401, 403, 404
 
-6.5.5 Chatbot (Custom AI)
-- GET /seller/chatbot-config
-- PATCH /seller/chatbot-config
-Mô tả: Cấu hình chatbot của shop (api_key, prompt, template, is_enabled).
 Ghi chú:
-Nếu is_enabled = false, hệ thống không gọi AI.
-Khi trả dữ liệu từ GET /seller/chatbot-config, api_key cần được masking (ví dụ: sk-...abcd).
-Status: 200, 401, 403, 422
+- Endpoint này được giữ để tương thích.
+- Storefront seller UI hiện không dùng form shipping riêng; luồng chính dùng PATCH /seller/orders/{id} với trường status.
 
-6.5.6 Thống kê cửa hàng
-- GET /seller/stats
-Query: from_date, to_date
-Mô tả: Lấy thống kê doanh thu, đơn hàng, sản phẩm bán chạy.
-Status: 200, 401, 403
+Status thường gặp: 200, 400, 401, 403, 404, 422.
 
-6.6 Nhóm API quản trị (Admin)
+6.5.14 GET /seller/chat/conversations
+Mục đích: seller lấy danh sách hội thoại thuộc shop của mình.
 
-6.6.1 Quản lý người dùng
-- GET /admin/users
-Query: role, status, keyword, page, page_size
-Mô tả: Lấy danh sách và lọc người dùng.
-Status: 200, 401, 403
+Yêu cầu xác thực: cần Bearer token seller/admin.
 
-- PATCH /admin/users/{id}
-Mô tả: Cập nhật trạng thái/quyền người dùng (active, banned, role).
-Request:
+Response data ví dụ:
 {
-  "status": "banned"
+  "items": [
+    {
+      "id": 20,
+      "buyer_id": 10,
+      "buyer_name": "Nguyen Van A",
+      "shop_id": 1,
+      "shop_name": "Tech Store",
+      "last_message": "Shop còn hàng không?",
+      "last_message_at": "2026-05-12T10:00:00",
+      "unread_count": 1
+    }
+  ]
 }
-Status: 200, 400, 401, 403, 404
 
-6.6.2 Quản lý yêu cầu mở cửa hàng
-- GET /admin/seller-requests
-Mô tả: Lấy danh sách yêu cầu mở cửa hàng.
-Status: 200, 401, 403
+Status thường gặp: 200, 401, 403.
 
-- PATCH /admin/seller-requests/{id}
-Mô tả: Phê duyệt hoặc từ chối yêu cầu.
-Request:
+6.5.15 GET /seller/chat/conversations/{conversation_id}/messages
+Mục đích: seller lấy tin nhắn trong hội thoại thuộc shop của mình.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Response data ví dụ:
+{
+  "items": [
+    { "id": 100, "sender_id": 10, "content": "Shop còn hàng không?", "is_read": false }
+  ]
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.5.16 POST /seller/chat/conversations/{conversation_id}/messages
+Mục đích: seller gửi tin nhắn trả lời buyer.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Request body:
+- content: string, bắt buộc. Nội dung tin nhắn.
+
+Ví dụ request:
+{
+  "content": "Sản phẩm còn hàng bạn nhé."
+}
+
+Response data ví dụ:
+{
+  "id": 102
+}
+
+Tác dụng phụ:
+- Tạo message mới.
+- Phát WebSocket chat_message cho buyer.
+- Không tạo notification row trong bảng Notifications.
+
+Status thường gặp: 201, 401, 403, 404, 422.
+
+6.5.17 PATCH /seller/chat/conversations/{conversation_id}/read
+Mục đích: seller đánh dấu tin nhắn từ buyer là đã đọc.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Path params:
+- conversation_id: integer, bắt buộc. ID hội thoại.
+
+Response data ví dụ:
+{
+  "updated": 2
+}
+
+Status thường gặp: 200, 401, 403, 404.
+
+6.5.18 GET /seller/chatbot-config
+Mục đích: lấy cấu hình chatbot của shop hiện tại.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Response data ví dụ:
+{
+  "api_key": "sk-...abcd",
+  "prompt": "Bạn là trợ lý bán hàng của shop",
+  "template": "Trả lời ngắn gọn, lịch sự",
+  "is_enabled": true
+}
+
+Ghi chú:
+- api_key cần được masking khi trả về để không lộ khóa thật.
+
+Status thường gặp: 200, 401, 403.
+
+6.5.19 PATCH /seller/chatbot-config
+Mục đích: cập nhật cấu hình chatbot của shop.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Request body:
+- api_key: string, bắt buộc. Khóa API dịch vụ AI.
+- prompt: string, tùy chọn. Hướng dẫn chatbot.
+- template: string, tùy chọn. Mẫu trả lời.
+- is_enabled: boolean, bắt buộc. Bật/tắt chatbot.
+
+Ví dụ request:
+{
+  "api_key": "sk-live-example",
+  "prompt": "Bạn là trợ lý tư vấn sản phẩm công nghệ.",
+  "template": "Trả lời bằng tiếng Việt, ngắn gọn.",
+  "is_enabled": true
+}
+
+Response data ví dụ:
+{
+  "api_key": "sk-...mple",
+  "prompt": "Bạn là trợ lý tư vấn sản phẩm công nghệ.",
+  "template": "Trả lời bằng tiếng Việt, ngắn gọn.",
+  "is_enabled": true
+}
+
+Status thường gặp: 200, 401, 403, 422.
+
+6.5.20 GET /seller/stats
+Mục đích: lấy thống kê doanh thu, đơn hàng và sản phẩm bán chạy của shop.
+
+Yêu cầu xác thực: cần Bearer token seller/admin.
+
+Query params:
+- from_date: string, tùy chọn. Ngày bắt đầu.
+- to_date: string, tùy chọn. Ngày kết thúc.
+
+Response data ví dụ:
+{
+  "revenue": 12000000,
+  "order_count": 8,
+  "product_count": 20,
+  "best_selling_products": [
+    { "product_id": 100, "name": "Smart Phone A", "sold_count": 5 }
+  ]
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.6 Nhóm API Admin
+Tất cả endpoint trong nhóm này có prefix /admin và yêu cầu user có role admin.
+
+6.6.1 GET /admin/users
+Mục đích: lấy danh sách user và lọc theo vai trò/trạng thái/từ khóa.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Query params:
+- role: string, tùy chọn. Lọc theo buyer, seller hoặc admin.
+- status: string, tùy chọn. Lọc theo trạng thái tài khoản.
+- keyword: string, tùy chọn. Tìm theo email hoặc tên.
+- page: integer, mặc định 1.
+- page_size: integer, mặc định 20.
+
+Response data ví dụ:
+{
+  "items": [
+    { "id": 10, "email": "buyer@example.com", "full_name": "Nguyen Van A", "role": "buyer", "status": "active" }
+  ],
+  "meta": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 }
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.6.2 PATCH /admin/users/{id}
+Mục đích: cập nhật role hoặc status của user.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Path params:
+- id: integer, bắt buộc. ID user cần cập nhật.
+
+Request body:
+- status: string hoặc null, tùy chọn. Trạng thái mới.
+- role: string hoặc null, tùy chọn. Vai trò mới.
+
+Ví dụ request:
+{
+  "status": "active",
+  "role": "seller"
+}
+
+Response data ví dụ:
+{
+  "id": 10,
+  "email": "buyer@example.com",
+  "role": "seller",
+  "status": "active"
+}
+
+Tác dụng phụ:
+- Cập nhật quyền/trạng thái user.
+- Có thể ghi audit log tùy service.
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.6.3 GET /admin/seller-requests
+Mục đích: lấy danh sách yêu cầu mở cửa hàng.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Query params:
+- status: string, tùy chọn. Lọc theo pending, approved, rejected nếu service hỗ trợ.
+- page: integer, tùy chọn.
+- page_size: integer, tùy chọn.
+
+Response data ví dụ:
+{
+  "items": [
+    {
+      "id": 5,
+      "user_id": 10,
+      "shop_name": "Shop ABC",
+      "description": "Cửa hàng đồ công nghệ",
+      "contact": "0123456789",
+      "status": "pending"
+    }
+  ]
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.6.4 PATCH /admin/seller-requests/{id}
+Mục đích: duyệt hoặc từ chối yêu cầu mở cửa hàng.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Path params:
+- id: integer, bắt buộc. ID seller request.
+
+Request body:
+- action: string, bắt buộc. Giá trị approve hoặc reject.
+- reason: string, tùy chọn. Lý do từ chối hoặc ghi chú xử lý.
+
+Ví dụ request duyệt:
 {
   "action": "approve",
-  "reason": "Đủ điều kiện"
+  "reason": "Đủ điều kiện mở shop"
 }
-Status: 200, 400, 401, 403, 404
 
-6.6.3 Quản lý báo cáo vi phạm
-- GET /admin/reports
-- PATCH /admin/reports/{id}
-Mô tả: Xem và xử lý báo cáo vi phạm.
-Status: 200, 401, 403, 404
+Ví dụ request từ chối:
+{
+  "action": "reject",
+  "reason": "Thông tin liên hệ chưa rõ ràng"
+}
 
-6.6.4 Nhật ký hệ thống
-- GET /admin/audit-logs
-Mô tả: Truy xuất lịch sử hành động quản trị.
-Status: 200, 401, 403
+Response data ví dụ:
+{
+  "id": 5,
+  "status": "approved"
+}
 
-6.6.5 Thống kê hệ thống (FAKE)
-- GET /admin/metrics
-Mô tả: Trả số liệu mô phỏng cho dashboard quản trị.
+Tác dụng phụ khi approve:
+- Cập nhật request thành approved.
+- Cập nhật user role thành seller.
+- Tạo hoặc cập nhật shop cho user.
+- Có thể tạo notification cho user.
+
+Tác dụng phụ khi reject:
+- Cập nhật request thành rejected.
+- Lưu reason.
+- Có thể tạo notification cho user.
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.6.5 GET /admin/reports
+Mục đích: lấy danh sách báo cáo vi phạm.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Query params:
+- status: string, tùy chọn. Lọc trạng thái xử lý nếu service hỗ trợ.
+- page: integer, tùy chọn.
+- page_size: integer, tùy chọn.
+
+Response data ví dụ:
+{
+  "items": [
+    { "id": 9, "reporter_id": 10, "target_type": "product", "target_id": 100, "reason": "Sai thông tin", "status": "pending" }
+  ]
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.6.6 PATCH /admin/reports/{id}
+Mục đích: cập nhật trạng thái xử lý báo cáo.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Path params:
+- id: integer, bắt buộc. ID report.
+
+Request body: tùy schema service hiện tại; thường gồm status, action hoặc note nếu mở rộng.
+
+Ví dụ request:
+{
+  "status": "resolved"
+}
+
+Response data ví dụ:
+{
+  "id": 9,
+  "status": "resolved"
+}
+
+Status thường gặp: 200, 400, 401, 403, 404, 422.
+
+6.6.7 GET /admin/audit-logs
+Mục đích: xem nhật ký thao tác quản trị.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Query params:
+- page: integer, tùy chọn.
+- page_size: integer, tùy chọn.
+- action: string, tùy chọn nếu service hỗ trợ lọc.
+
+Response data ví dụ:
+{
+  "items": [
+    { "id": 1, "admin_id": 1, "action": "approve_seller_request", "target_type": "seller_request", "target_id": 5, "description": "Approved seller request" }
+  ]
+}
+
+Status thường gặp: 200, 401, 403.
+
+6.6.8 GET /admin/metrics
+Mục đích: lấy KPI cho dashboard admin.
+
+Yêu cầu xác thực: cần Bearer token admin.
+
+Response data ví dụ:
+{
+  "user_count": 100,
+  "seller_count": 20,
+  "order_count": 50,
+  "revenue": 50000000,
+  "pending_seller_requests": 3,
+  "pending_reports": 2
+}
+
 Ghi chú:
-Dữ liệu có thể lấy từ DB hoặc mock để phục vụ dashboard trong phạm vi prototype.
-Metrics có thể được tổng hợp từ các bảng Orders, Users, Payments.
-Status: 200, 401, 403
+- Metrics có thể lấy từ DB hoặc dữ liệu tổng hợp/mô phỏng trong phạm vi prototype.
 
-6.6.6 Logs hệ thống (FAKE)
-- GET /admin/logs
-Mô tả: Trả dữ liệu logs mô phỏng hoặc từ audit logs.
-Status: 200, 401, 403
+Status thường gặp: 200, 401, 403.
 
-6.7 Ma trận phân quyền API theo vai trò
-- Buyer: /users/me, /cart, /orders/my, /payments/*, /reports, /notifications, /chat/*, /seller-requests.
-- Seller: toàn bộ API Buyer + /seller/* (trong phạm vi shop của mình).
-- Admin: /admin/* và quyền giám sát toàn hệ thống.
+6.6.9 GET /admin/logs
+Mục đích: lấy system logs phục vụ trang quản trị.
 
-6.8 Tổng kết
-Thiết kế API đảm bảo:
-- Bao phủ đầy đủ các use case đã phân tích.
-- Endpoint nhất quán theo chuẩn RESTful.
-- Có chuẩn response lỗi, status code, phân trang rõ ràng.
-- Giữ mô hình FAKE cho thanh toán, vận chuyển, metrics để phù hợp phạm vi bài tập lớn.
-- Sẵn sàng mở rộng sang tích hợp thực tế (cổng thanh toán, đơn vị vận chuyển, hệ thống AI production).
+Yêu cầu xác thực: cần Bearer token admin.
 
+Response data ví dụ:
+{
+  "items": [
+    { "level": "info", "message": "System started", "created_at": "2026-05-12T10:00:00" }
+  ]
+}
 
+Ghi chú:
+- Trong prototype, logs có thể là dữ liệu mô phỏng hoặc lấy từ audit/system service.
+
+Status thường gặp: 200, 401, 403.
+
+6.7 WebSocket API
+
+6.7.1 Quy ước xác thực WebSocket
+WebSocket nhận access token qua query param:
+?token=<access_token>
+
+Nếu token thiếu, sai hoặc user không active, server đóng kết nối với code 1008.
+
+6.7.2 WS /chat/events
+Mục đích: realtime event cho chat buyer-seller.
+
+Ví dụ URL:
+ws://localhost:8000/api/v1/chat/events?token=<access_token>
+
+Event chat_message:
+{
+  "type": "chat_message",
+  "conversation_id": 20,
+  "message_id": 101,
+  "shop_id": 1,
+  "sender_id": 10
+}
+
+Ý nghĩa:
+- type: loại event.
+- conversation_id: hội thoại có tin nhắn mới.
+- message_id: tin nhắn mới.
+- shop_id: shop liên quan.
+- sender_id: user gửi tin nhắn.
+
+Event chat_conversation:
+{
+  "type": "chat_conversation",
+  "conversation_id": 20,
+  "shop_id": 1
+}
+
+Frontend nên phản ứng bằng cách refetch conversation list hoặc messages của hội thoại đang mở.
+
+6.7.3 WS /account/events
+Mục đích: realtime event cho trạng thái tài khoản như giỏ hàng, đơn hàng và thông báo.
+
+Ví dụ URL:
+ws://localhost:8000/api/v1/account/events?token=<access_token>
+
+Các event phổ biến:
+{
+  "type": "cart_updated"
+}
+
+{
+  "type": "order_created",
+  "order_id": 123
+}
+
+{
+  "type": "order_updated",
+  "order_id": 123
+}
+
+{
+  "type": "seller_order_created",
+  "order_id": 123
+}
+
+{
+  "type": "notification_deleted",
+  "notification_id": 9
+}
+
+Frontend nên phản ứng bằng cách refetch dữ liệu liên quan như /cart, /notifications, /orders/my hoặc /seller/orders.
+
+6.8 Ma trận phân quyền API
+- Public: GET /categories, GET /products, POST /products/intent-search, GET /products/recommend, GET /products/{id}, GET /products/{id}/reviews, GET /shops, GET /shops/{id}.
+- Authenticated user/buyer: /users/me, /cart, /orders, /payments, /reviews, /reports, /notifications, /chat, /seller-requests.
+- Seller/Admin: toàn bộ /seller/* trong phạm vi shop được phép quản lý.
+- Admin: toàn bộ /admin/*.
+- WebSocket: cần access token active qua query param token.
+
+6.9 Ghi chú tích hợp frontend
+- Frontend API client unwrap response.data.data trên response thành công.
+- Khi backend trả 204 No Content, frontend không nên cố parse JSON body.
+- Search page dùng GET /products để nhận đồng thời shops và products.
+- Search UI giữ keyword và intent là hai mode riêng; intent có thể gọi /products/intent-search hoặc truyền mode tương ứng tùy wrapper frontend.
+- Cart, notification và order badge nên cập nhật qua WS /account/events thay vì polling liên tục.
+- Chat badge dùng WS /chat/events và unread_count, không dùng bảng Notifications.
+- Seller order UI hiện dùng PATCH /seller/orders/{id} với status; không dùng shipping form riêng làm luồng chính.
+
+6.10 Tổng kết
+Thiết kế API hiện tại bao phủ các luồng chính sau:
+- Auth: đăng ký, OTP, đăng nhập, refresh, logout và reset password.
+- Public catalog: danh mục, sản phẩm, shop, tìm kiếm keyword/intent và review công khai.
+- Buyer: hồ sơ, giỏ hàng, checkout, đơn hàng, thanh toán, review, seller request, report, notification và chat.
+- Seller: shop, product, product image, seller order, seller chat, chatbot config và stats.
+- Admin: user, seller request, report, audit log, metrics và system logs.
+- Realtime: chat events và account events qua WebSocket.
+
+Các hạn chế cần lưu ý:
+- OTP và refresh-token revocation hiện có thể lưu in-memory nên không bền vững sau khi restart server.
+- Thanh toán/vận chuyển đang ở mức prototype hoặc mô phỏng.
+- Orders.status là trạng thái chung cấp order; nếu một order có nhiều shop thì chưa có trạng thái riêng từng shop.
+- WebSocket token qua query param phù hợp local/dev nhưng production nên có cơ chế bảo mật chặt hơn.
