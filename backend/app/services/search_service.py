@@ -86,7 +86,8 @@ def _serialize_shop_for_search(db: Session, shop: Shop) -> dict:
 def _build_query(db: Session, query: str, page: int, page_size: int,
                  category_id: int | None = None, shop_id: int | None = None,
                  min_price: float | None = None, max_price: float | None = None,
-                 min_rating: int | None = None, sort: str | None = None):
+                 min_rating: int | None = None, sort: str | None = None,
+                 product_ids: list[int] | None = None):
     rating_subquery = (
         select(Review.product_id.label("product_id"), func.avg(Review.rating).label("avg_rating"))
         .group_by(Review.product_id)
@@ -98,7 +99,7 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
         .subquery()
     )
     filters = [Product.deleted_at.is_(None)]
-    if query:
+    if query and product_ids is None:
         filters.append(Product.name.ilike(f"%{query}%"))
     if category_id is not None:
         filters.append(Product.category_id == category_id)
@@ -110,6 +111,8 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
         filters.append(Product.price <= max_price)
     if min_rating is not None:
         filters.append(rating_subquery.c.avg_rating >= min_rating)
+    if product_ids is not None:
+        filters.append(Product.id.in_(product_ids))
 
     stmt = (
         select(Product)
@@ -132,7 +135,11 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
     elif sort == "newest":
         stmt = stmt.order_by(Product.id.desc())
     else:
-        stmt = stmt.order_by(Product.id.desc())
+        if product_ids:
+            whens = {pid: i for i, pid in enumerate(product_ids)}
+            stmt = stmt.order_by(case(whens, value=Product.id))
+        else:
+            stmt = stmt.order_by(Product.id.desc())
 
     safe_page = max(page, 1)
     safe_page_size = max(min(page_size, 100), 1)
@@ -183,17 +190,59 @@ def search_shops(db: Session, query: str, page: int, page_size: int):
 def search_products(db: Session, query: str, page: int, page_size: int,
                     category_id: int | None = None, shop_id: int | None = None,
                     min_price: float | None = None, max_price: float | None = None,
-                    min_rating: int | None = None, sort: str | None = None):
-    return _build_query(db, query, page, page_size,
+                    min_rating: int | None = None, sort: str | None = None,
+                    search_type: str = "normal"):
+    is_fallback = False
+    ai_parsed = None
+    product_ids = None
+
+    if search_type == "ai" and query and query.strip():
+        from app.services.ai_service import parse_intent, vector_store
+        # Get category names from the database
+        categories = db.scalars(select(Category.name)).all()
+        ai_res = parse_intent(query, categories)
+        ai_parsed = ai_res
+        is_fallback = ai_res.get("is_fallback", False)
+        
+        # Override query parameters if parsed from intent
+        query = ai_res.get("search_query") or query
+        if ai_res.get("min_price") is not None:
+            min_price = ai_res.get("min_price")
+        if ai_res.get("max_price") is not None:
+            max_price = ai_res.get("max_price")
+        if ai_res.get("sort") is not None:
+            sort = ai_res.get("sort")
+            
+        ai_cat_name = ai_res.get("category")
+        if ai_cat_name:
+            db_cat = db.scalar(
+                select(Category)
+                .join(Product, Product.category_id == Category.id)
+                .where(Category.name.ilike(f"%{ai_cat_name}%"), Product.deleted_at.is_(None))
+                .limit(1)
+            )
+            if db_cat:
+                category_id = db_cat.id
+            # Else: don't set category_id, let vector search find it by name/desc
+                
+        # Perform semantic query using the vector store
+        product_ids = vector_store.query_similarity(query, k=50)
+
+    res = _build_query(db, query, page, page_size,
                         category_id=category_id, shop_id=shop_id,
-                        min_price=min_price, max_price=max_price, min_rating=min_rating, sort=sort)
+                        min_price=min_price, max_price=max_price, min_rating=min_rating, sort=sort,
+                        product_ids=product_ids)
+    res["is_fallback"] = is_fallback
+    res["ai_parsed"] = ai_parsed
+    return res
 
 
 def search_marketplace(db: Session, query: str, page: int, page_size: int,
                        shop_page: int = 1, shop_page_size: int = 4,
                        category_id: int | None = None, shop_id: int | None = None,
                        min_price: float | None = None, max_price: float | None = None,
-                       min_rating: int | None = None, sort: str | None = None):
+                       min_rating: int | None = None, sort: str | None = None,
+                       search_type: str = "normal"):
     products = search_products(
         db,
         query=query,
@@ -205,6 +254,7 @@ def search_marketplace(db: Session, query: str, page: int, page_size: int,
         max_price=max_price,
         min_rating=min_rating,
         sort=sort,
+        search_type=search_type
     )
     shops = {"items": [], "meta": _meta(max(shop_page, 1), max(min(shop_page_size, 24), 1), 0)}
     if query and shop_id is None:
@@ -215,3 +265,27 @@ def search_marketplace(db: Session, query: str, page: int, page_size: int,
 def recommend_products(db: Session, page: int, page_size: int):
     # Mock: return newest products as recommendations
     return _build_query(db, "", page, page_size, sort="newest")
+
+
+# Index status tracking
+import logging
+logger = logging.getLogger(__name__)
+
+INDEX_STATUS = "idle"  # idle, indexing, ready, error
+
+def init_search_index(db: Session):
+    global INDEX_STATUS
+    INDEX_STATUS = "indexing"
+    try:
+        logger.info("Initializing search index...")
+        from app.services.ai_service import vector_store
+        # Get all products that are not deleted
+        products = db.scalars(select(Product).where(Product.deleted_at.is_(None))).all()
+        for p in products:
+            vector_store.add_product(p.id, p.name, p.description, p.category_id)
+        INDEX_STATUS = "ready"
+        logger.info(f"Search index initialized successfully with {len(products)} products.")
+    except Exception as e:
+        INDEX_STATUS = "error"
+        logger.error(f"Error initializing search index: {e}")
+

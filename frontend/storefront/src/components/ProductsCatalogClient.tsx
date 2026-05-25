@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Search, SlidersHorizontal, Star, Store } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal, Sparkles, Star, Store } from "lucide-react";
 import AddToCartButton from "@/components/AddToCartButton";
 import SearchModeBar from "@/components/SearchModeBar";
 import type { Category, PageMeta, ProductListItem, ShopListItem } from "@/lib/api-types";
@@ -48,6 +48,8 @@ export default function ProductsCatalogClient({
   maxPrice,
   minRating,
   sort,
+  isFallback = false,
+  aiParsed = null,
 }: {
   products: ProductListItem[];
   productMeta: PageMeta;
@@ -62,6 +64,8 @@ export default function ProductsCatalogClient({
   maxPrice: string;
   minRating: string;
   sort: string;
+  isFallback?: boolean;
+  aiParsed?: any;
 }) {
   const current = { mode, q: query, category_id: categoryId, shop_id: shopId, min_price: minPrice, max_price: maxPrice, min_rating: minRating, sort };
   const categoryCounts = new Map<number, { id: number; name: string; count: number }>();
@@ -90,6 +94,37 @@ export default function ProductsCatalogClient({
       </div>
 
       <SearchModeBar defaultQuery={query} defaultMode={mode === "intent" ? "intent" : "keyword"} className="mb-6" />
+
+      {mode === "intent" && isFallback && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm flex items-center gap-3">
+          <Sparkles size={16} className="text-amber-500 animate-pulse shrink-0" />
+          <span>
+            <strong>AI Fallback Mode:</strong> Trình phân tích ý định AI hiện đang tạm bận. Hệ thống đã tự động chuyển sang phân tích ý định dự phòng bằng Regex và từ khóa truyền thống để phục vụ bạn.
+          </span>
+        </div>
+      )}
+
+      {mode === "intent" && aiParsed && (
+        <div className="mb-6 rounded-[1.5rem] border border-violet-100 bg-violet-50/50 p-4 text-xs text-violet-800 backdrop-blur-xl">
+          <div className="flex items-center gap-2 font-semibold text-violet-950 mb-2">
+            <Sparkles size={14} className="text-violet-500" />
+            AI Intent Analysis Results:
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {aiParsed.category && <span>Category: <strong className="text-slate-900">{aiParsed.category}</strong></span>}
+            {(aiParsed.min_price || aiParsed.max_price) && (
+              <span>
+                Price range: <strong className="text-slate-900">
+                  {aiParsed.min_price ? formatVnd(aiParsed.min_price) : "0đ"}
+                  {aiParsed.max_price ? ` - ${formatVnd(aiParsed.max_price)}` : " trở lên"}
+                </strong>
+              </span>
+            )}
+            {aiParsed.sort && <span>Sorting: <strong className="text-slate-900">{aiParsed.sort}</strong></span>}
+            {aiParsed.search_query && <span>Extracted Keywords: <strong className="text-slate-900">{aiParsed.search_query}</strong></span>}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr] lg:items-start">
         <aside className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-5 shadow-sm backdrop-blur-xl lg:sticky lg:top-28">

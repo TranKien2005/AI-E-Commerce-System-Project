@@ -134,7 +134,7 @@ export default function Navbar() {
           </button>
 
           {activePopover === "notifications" && (
-            <div className="absolute right-0 top-14 w-80 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="absolute right-0 top-14 w-80 max-h-[80vh] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
               <div className="mb-3 flex items-center justify-between"><p className="font-semibold text-slate-950">Notifications</p><span className="text-xs text-slate-400">{unreadCount} unread</span></div>
               <div className="grid gap-2">
                 {previewNotifications.length ? previewNotifications.map((item) => (
@@ -148,7 +148,7 @@ export default function Navbar() {
           )}
 
           {activePopover === "cart" && (
-            <div className="absolute right-0 top-14 w-80 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="absolute right-0 top-14 w-80 max-h-[80vh] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
               <div className="mb-3 flex items-center justify-between"><p className="font-semibold text-slate-950">Cart</p><span className="text-xs text-slate-400">{cartItems.length} items</span></div>
               <div className="grid gap-2">
                 {previewCart.length ? previewCart.map((item) => (
@@ -164,7 +164,7 @@ export default function Navbar() {
           )}
 
           {activePopover === "profile" && (
-            <div className="absolute right-0 top-14 w-72 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="absolute right-0 top-14 w-72 max-h-[80vh] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-2xl">
               <div className="mb-3 rounded-2xl bg-slate-50 p-3">
                 <p className="font-semibold text-slate-950">{user?.full_name ?? "Account"}</p>
                 <p className="truncate text-xs text-slate-500">{user?.email}</p>

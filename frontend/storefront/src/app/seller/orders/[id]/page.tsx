@@ -42,8 +42,6 @@ export default function SellerOrderDetailPage() {
       .then((data) => {
         setOrder(data);
         setStatus(data.status);
-        setShippingStatus(data.shipping_status ?? "preparing");
-        setShippingNote(data.shipping_note ?? "");
       })
       .catch((err) => {
         if (clearTokensIfUnauthorized(err)) setToken(null);

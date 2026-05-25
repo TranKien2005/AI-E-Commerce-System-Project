@@ -72,6 +72,11 @@ def create_product(db: Session, user: User, name: str, description: str, price: 
     p = Product(shop_id=shop.id, category_id=category_id, name=name, description=description, price=price, stock=stock)
     db.add(p)
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+    except Exception as e:
+        logger.warning(f"Failed to add product {p.id} to search index: {e}")
     return ok({"id": p.id})
 
 
@@ -87,6 +92,11 @@ def update_product(db: Session, user: User, product_id: int, name: str, descript
     p.stock = stock
     p.category_id = category_id
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+    except Exception as e:
+        logger.warning(f"Failed to update product {p.id} in search index: {e}")
     return ok({})
 
 
@@ -98,6 +108,11 @@ def delete_product(db: Session, user: User, product_id: int):
     # Soft delete per docs §6.2
     p.deleted_at = datetime.now(timezone.utc)
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.delete_product(p.id)
+    except Exception as e:
+        logger.warning(f"Failed to delete product {p.id} from search index: {e}")
 
 
 def _ensure_product_owned_by_user(db: Session, user: User, product_id: int) -> Product:

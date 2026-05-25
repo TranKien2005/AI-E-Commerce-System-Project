@@ -498,7 +498,11 @@ def import_review_rows(db: Session, rows: Any, review_limit: int, product_by_sou
     imported_reviews = 0
     created_users = 0
     created_orders = 0
-    for row in islice(rows, review_limit):
+    scanned = 0
+    for row in rows:
+        scanned += 1
+        if scanned > 100000:
+            break
         review = normalize_review(dict(row))
         if not review or review.product_source_id not in product_by_source_id:
             continue
@@ -525,7 +529,8 @@ def import_review_rows(db: Session, rows: Any, review_limit: int, product_by_sou
         if review.verified_purchase:
             create_seed_order(db, user, product, review)
             created_orders += 1
-    return imported_reviews, created_users, created_orders
+        if imported_reviews >= review_limit:
+            break
     return imported_reviews, created_users, created_orders
 
 
