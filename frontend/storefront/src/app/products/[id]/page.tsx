@@ -5,10 +5,11 @@ import { BadgeCheck, PlayCircle, Star, Store, ThumbsUp } from "lucide-react";
 import ProductReviewForm from "@/components/ProductReviewForm";
 import ProductSellerActions from "@/components/ProductSellerActions";
 import ProductPurchaseActions from "@/components/ProductPurchaseActions";
+import ProductImageGallery from "@/components/ProductImageGallery";
 import { getProduct, getProductReviews } from "@/lib/storefront-api";
 import { formatVnd } from "@/lib/format";
 import { ApiError } from "@/lib/api-client";
-import { placeholderProductImage, safeImageUrl } from "@/lib/image";
+import { placeholderProductImage } from "@/lib/image";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,8 +23,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const product = productResult.value;
   const reviews = reviewsResult.status === "fulfilled" ? reviewsResult.value.items : [];
   const uniqueImages = Array.from(new Map(product.images.filter((image) => image.url).map((image) => [`${image.id}-${image.url}`, image])).values());
-  const images = uniqueImages.length ? uniqueImages : [{ id: 0, url: placeholderProductImage, is_primary: true, variant: "MAIN", source_size: "fallback" }];
-  const primaryImage = images.find((image) => image.is_primary) ?? images[0];
+  
   const details = product.attributes?.details ?? {};
   const normalizedDetails = product.attributes?.normalized_details ?? {};
   const detailRows = Object.entries({ ...normalizedDetails, ...details }).filter(([, value]) => value !== null && value !== "").slice(0, 16);
@@ -32,20 +32,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="premium-section py-8 md:py-12 pb-24">
       <div className="grid gap-8 grid-cols-1 md:grid-cols-[1.1fr,1fr] lg:grid-cols-[minmax(0,0.95fr)_minmax(360px,0.75fr)] md:items-start">
-        <div className="premium-panel p-4 md:p-6 lg:sticky lg:top-28">
-          <div className="relative aspect-[4/5] overflow-hidden rounded-[2.2rem] bg-gradient-to-br from-white to-slate-100">
-            <Image src={safeImageUrl(primaryImage.url)} alt={product.name} fill priority sizes="(min-width: 1024px) 48vw, 100vw" className="object-cover mix-blend-multiply" />
-            <div className="absolute left-5 top-5 rounded-full bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">{product.category?.name ?? "Catalog"}</div>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-3">
-            {images.slice(0, 4).map((image, index) => (
-              <div key={`${image.id}-${index}`} className="relative aspect-square overflow-hidden rounded-2xl bg-slate-100">
-                <Image src={safeImageUrl(image.url)} alt={`${product.name} ${index + 1}`} fill sizes="(min-width: 1024px) 12vw, 25vw" className="object-cover opacity-80 mix-blend-multiply" />
-                {image.id === primaryImage.id && <span className="absolute bottom-2 left-2 rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Main</span>}
-              </div>
-            ))}
-          </div>
-        </div>
+        
+        <ProductImageGallery 
+          images={uniqueImages} 
+          productName={product.name} 
+          primaryImageId={product.images.find(img => img.is_primary)?.id} 
+        />
 
         <div className="flex flex-col mt-4 md:mt-0 px-1 sm:px-0">
           <p className="eyebrow mb-3 md:mb-4">Product detail</p>
