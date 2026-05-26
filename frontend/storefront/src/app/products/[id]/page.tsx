@@ -56,7 +56,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
           <div className="mt-8 rounded-[2rem] border border-white/70 bg-white/70 p-6 shadow-sm backdrop-blur-xl">
             <p className="text-4xl font-light text-slate-950">{formatVnd(product.price)}</p>
-            <p className="mt-4 line-clamp-4 text-base font-light leading-7 text-slate-500">{product.description || "This product does not have a detailed description yet."}</p>
+            <p className="mt-4 line-clamp-4 text-base font-light leading-7 text-slate-500 whitespace-pre-wrap">{product.description || "This product does not have a detailed description yet."}</p>
             {sourceInfo && <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">{sourceInfo}</p>}
             <ProductPurchaseActions productId={product.id} />
           </div>
@@ -97,7 +97,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div className="premium-panel p-8">
           <p className="eyebrow mb-4">Description & attributes</p>
           <h2 className="text-3xl font-light text-slate-950">Product information</h2>
-          <p className="mt-5 leading-8 text-slate-500">{product.description || "This product does not have a detailed description yet."}</p>
+          <p className="mt-5 leading-8 text-slate-500 whitespace-pre-wrap">{product.description || "This product does not have a detailed description yet."}</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {detailRows.length ? detailRows.map(([key, value]) => (
               <div key={key} className="rounded-2xl bg-slate-50 p-4 text-sm">
@@ -121,7 +121,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   {review.helpful_votes > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-500"><ThumbsUp size={12} /> {review.helpful_votes}</span>}
                 </div>
                 {review.title && <p className="mt-2 font-semibold text-slate-800">{review.title}</p>}
-                <p className="mt-1 text-slate-500">{review.comment || "No comment."}</p>
+                <p className="mt-1 text-slate-500 whitespace-pre-wrap">{review.comment || "No comment."}</p>
               </div>
             ))}
           </div>
