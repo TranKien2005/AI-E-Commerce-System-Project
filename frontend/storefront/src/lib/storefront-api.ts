@@ -13,6 +13,7 @@ export type ProductQuery = {
   page_size?: string;
   shop_page?: string;
   shop_page_size?: string;
+  search_type?: string;
 };
 
 const queryString = (params: Record<string, string | number | undefined | null>) => {

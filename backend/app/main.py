@@ -40,6 +40,22 @@ setup_exception_handlers(app)
 def health_check():
     return {"success": True, "data": {"status": "ok"}, "message": "OK"}
 
+
+@app.on_event("startup")
+def startup_event():
+    import threading
+    from app.db.session import SessionLocal
+    from app.services.search_service import init_search_index
+
+    def run_indexing():
+        db = SessionLocal()
+        try:
+            init_search_index(db)
+        finally:
+            db.close()
+
+    threading.Thread(target=run_indexing, daemon=True).start()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

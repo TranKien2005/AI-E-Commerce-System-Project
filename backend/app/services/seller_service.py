@@ -72,6 +72,11 @@ def create_product(db: Session, user: User, name: str, description: str, price: 
     p = Product(shop_id=shop.id, category_id=category_id, name=name, description=description, price=price, stock=stock)
     db.add(p)
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+    except Exception as e:
+        logger.warning(f"Failed to add product {p.id} to search index: {e}")
     return ok({"id": p.id})
 
 
@@ -87,6 +92,11 @@ def update_product(db: Session, user: User, product_id: int, name: str, descript
     p.stock = stock
     p.category_id = category_id
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+    except Exception as e:
+        logger.warning(f"Failed to update product {p.id} in search index: {e}")
     return ok({})
 
 
@@ -98,6 +108,11 @@ def delete_product(db: Session, user: User, product_id: int):
     # Soft delete per docs §6.2
     p.deleted_at = datetime.now(timezone.utc)
     db.commit()
+    try:
+        from app.services.ai_service import vector_store
+        vector_store.delete_product(p.id)
+    except Exception as e:
+        logger.warning(f"Failed to delete product {p.id} from search index: {e}")
 
 
 def _ensure_product_owned_by_user(db: Session, user: User, product_id: int) -> Product:
@@ -112,6 +127,7 @@ def _promote_primary_image(db: Session, product_id: int):
     remaining = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id).order_by(ProductImage.id.asc())).all()
     if remaining and not any(image.is_primary for image in remaining):
         remaining[0].is_primary = True
+
 
 
 def add_product_image(db: Session, user: User, product_id: int, url: str, is_primary: bool):
@@ -438,3 +454,4 @@ def get_chatbot_config(db: Session, user: User):
         return ok({"api_key": None, "prompt": "", "template": "", "is_enabled": False})
     masked = cfg.api_key[:3] + "..." + cfg.api_key[-4:] if len(cfg.api_key) > 7 else "***"
     return ok({"api_key": masked, "prompt": cfg.prompt, "template": cfg.template, "is_enabled": cfg.is_enabled})
+

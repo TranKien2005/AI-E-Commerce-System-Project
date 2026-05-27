@@ -103,14 +103,39 @@ def list_products(
         max_price=max_price,
         min_rating=min_rating,
         sort=sort,
+        search_type=search_type,
     )
-    return ok({**data, "items": data["products"]["items"], "meta": data["products"]["meta"]})
+    return ok({
+        **data,
+        "items": data["products"]["items"],
+        "meta": data["products"]["meta"],
+        "is_fallback": data["products"].get("is_fallback", False),
+        "ai_parsed": data["products"].get("ai_parsed")
+    })
+
+
+@router.get("/products/search-status")
+def get_search_status():
+    from app.services.search_service import INDEX_STATUS
+    return ok({"status": INDEX_STATUS})
 
 
 @router.post("/products/intent-search")
 def intent_search(payload: IntentSearchIn, db: Session = Depends(get_db)):
-    data = search_service.search_marketplace(db, query=payload.query, page=payload.page, page_size=payload.page_size)
-    return ok({**data, "items": data["products"]["items"], "meta": data["products"]["meta"]})
+    data = search_service.search_marketplace(
+        db,
+        query=payload.query,
+        page=payload.page,
+        page_size=payload.page_size,
+        search_type="ai"
+    )
+    return ok({
+        **data,
+        "items": data["products"]["items"],
+        "meta": data["products"]["meta"],
+        "is_fallback": data["products"].get("is_fallback", False),
+        "ai_parsed": data["products"].get("ai_parsed")
+    })
 
 
 @router.get("/products/recommend")

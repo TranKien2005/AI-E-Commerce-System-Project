@@ -100,6 +100,50 @@ The script builds the backend image, loads it into the Docker Desktop Kubernetes
 Run seed data inside Kubernetes:
 
 ```powershell
+cd backend
+.\k8s-seed.ps1
+```
+
+## 5. Troubleshooting & Proper Execution
+
+### Common Issues
+- **Empty Data**: Running `seed.py` without `--import-products` results in 0 products.
+- **Port 8000 Conflict**: Other apps (like Emogrow) might hijack `127.0.0.1:8000`. Ensure port 8000 is free or use Docker NAT mapping correctly.
+- **Docker Image Stale**: Missing dependencies like `requests` in the container. Rebuild with `docker build`.
+- **Broken Venv**: Local virtual environments pointing to missing Python runtimes.
+
+### Verified Run Instructions (Docker)
+
+1. **Start Infrastructure**:
+   ```bash
+   cd backend
+   docker-compose up -d
+   ```
+
+2. **Build & Run Backend Container**:
+   ```bash
+   cd backend
+   docker build -t backend-api-local .
+   docker rm -f backend-api-new
+   docker run -d --name backend-api-new --network backend_default -p 8000:8000 --env-file .env -e DATABASE_URL=postgresql+psycopg2://postgres:postgres@ecommerce_db:5432/ecommerce -e REDIS_URL=redis://ecommerce_redis:6379/0 backend-api-local
+   ```
+
+3. **Seed Products into Docker**:
+   ```bash
+   docker exec -it backend-api-new python scripts/seed.py --import-products --limit 10
+   ```
+
+4. **Run Frontend**:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+5. **Access**:
+   - Storefront: `http://localhost:3000`
+   - Login: `buyer@example.com` / `Buyer@123`
+
+```powershell
 .\k8s-seed.ps1
 ```
 
