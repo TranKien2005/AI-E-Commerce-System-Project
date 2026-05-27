@@ -129,6 +129,7 @@ def _promote_primary_image(db: Session, product_id: int):
         remaining[0].is_primary = True
 
 
+
 def add_product_image(db: Session, user: User, product_id: int, url: str, is_primary: bool):
     _ensure_product_owned_by_user(db, user, product_id)
     existing = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id)).all()
@@ -453,3 +454,4 @@ def get_chatbot_config(db: Session, user: User):
         return ok({"api_key": None, "prompt": "", "template": "", "is_enabled": False})
     masked = cfg.api_key[:3] + "..." + cfg.api_key[-4:] if len(cfg.api_key) > 7 else "***"
     return ok({"api_key": masked, "prompt": cfg.prompt, "template": cfg.template, "is_enabled": cfg.is_enabled})
+
