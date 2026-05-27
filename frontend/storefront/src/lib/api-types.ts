@@ -29,6 +29,8 @@ export type ShopListItem = {
 export type MarketplaceSearchResult = {
   shops: Paginated<ShopListItem>;
   products: Paginated<ProductListItem>;
+  is_fallback?: boolean;
+  ai_parsed?: any;
 };
 
 export type ProductListItem = {

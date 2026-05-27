@@ -29,7 +29,7 @@ export default function AiSearchOverlay({ isOpen, onClose }: { isOpen: boolean; 
           initial={{ opacity: 0, scale: 1.02 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.02 }}
-          className="fixed inset-0 z-[100] bg-slate-950/45 p-4 backdrop-blur-2xl"
+          className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-2xl"
         >
           <button onClick={onClose} className="premium-icon-button absolute right-6 top-6" aria-label="Close search">
             <X size={20} />

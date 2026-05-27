@@ -25,11 +25,39 @@ export async function apiFetch<T>(path: string, init: RequestInit & { token?: st
 
   if (response.status === 204) return undefined as T;
 
-  const envelope = (await response.json()) as ApiEnvelope<T>;
-  if (!response.ok || !envelope.success) {
-    const message = envelope.success ? response.statusText : envelope.error.message;
-    const code = envelope.success ? undefined : envelope.error.code;
+  let envelope: any;
+  try {
+    envelope = await response.json();
+  } catch (err) {
+    if (!response.ok) {
+      throw new ApiError(response.statusText || `HTTP Error ${response.status}`, response.status);
+    }
+    throw new ApiError("Phản hồi từ máy chủ không đúng định dạng JSON", response.status);
+  }
+
+  if (!response.ok || (envelope && envelope.success === false)) {
+    let message = response.statusText || `HTTP Error ${response.status}`;
+    let code: string | undefined = undefined;
+
+    if (envelope && typeof envelope === "object") {
+      if (envelope.error && typeof envelope.error === "object") {
+        message = envelope.error.message || message;
+        code = envelope.error.code;
+      } else if (typeof envelope.detail === "string") {
+        message = envelope.detail;
+      } else if (typeof envelope.detail === "object" && envelope.detail !== null) {
+        message = JSON.stringify(envelope.detail);
+      } else if (typeof envelope.message === "string") {
+        message = envelope.message;
+      } else if (typeof envelope.error === "string") {
+        message = envelope.error;
+      }
+    }
     throw new ApiError(message, response.status, code);
   }
-  return envelope.data;
+
+  if (envelope && typeof envelope === "object" && "success" in envelope && "data" in envelope) {
+    return envelope.data as T;
+  }
+  return envelope as T;
 }
