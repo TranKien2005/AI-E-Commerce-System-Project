@@ -38,6 +38,7 @@ def send_email_resend(to: str, subject: str, body: str) -> bool:
         return False
 
     try:
+        # External email delivery is protected by a circuit breaker to avoid repeated slow failures.
         response = email_circuit_breaker.call(
             requests.post,
             "https://api.resend.com/emails",
