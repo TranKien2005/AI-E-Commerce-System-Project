@@ -1,3 +1,5 @@
+"""Admin workflows for users, seller requests, reports, audit logs, and metrics."""
+
 import logging
 
 from sqlalchemy import func, select
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _send_email_after_commit(to_email: str, subject: str, html: str):
+    """Send non-critical email after DB commit so email failures do not roll back moderation."""
     try:
         send_email(to_email, subject, html)
     except Exception:
@@ -18,6 +21,7 @@ def _send_email_after_commit(to_email: str, subject: str, html: str):
 
 
 def patch_user(db: Session, admin_id: int, user_id: int, status: str | None, role: str | None):
+    """Update user access fields and record the admin action in audit logs."""
     user = db.get(User, user_id)
     if not user:
         fail(404, "NOT_FOUND", "Không tìm thấy người dùng")
@@ -38,6 +42,7 @@ def list_seller_requests(db: Session):
 
 
 def patch_seller_request(db: Session, admin_id: int, request_id: int, action: str, reason: str):
+    """Approve or reject a seller request, creating a shop on approval."""
     req = db.get(SellerRequest, request_id)
     if not req:
         fail(404, "NOT_FOUND", "Không tìm thấy yêu cầu")
@@ -49,6 +54,7 @@ def patch_seller_request(db: Session, admin_id: int, request_id: int, action: st
     req.reason = reason
     email_payload: tuple[str, str, str] | None = None
     if action == "approve":
+        # Approval upgrades the user to seller and ensures there is one owned shop.
         user = db.get(User, req.user_id)
         if user:
             user.role = "seller"
@@ -91,6 +97,7 @@ def audit_logs(db: Session):
 
 
 def metrics(db: Session):
+    """Return dashboard counters aggregated from the operational tables."""
     total_users = db.scalar(select(func.count()).select_from(User)) or 0
     total_orders = db.scalar(select(func.count()).select_from(Order)) or 0
     total_payments = db.scalar(select(func.count()).select_from(Payment)) or 0
