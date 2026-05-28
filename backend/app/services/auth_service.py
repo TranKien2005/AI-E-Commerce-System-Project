@@ -1,3 +1,5 @@
+"""Authentication service: registration, OTP verification, JWT refresh, and password reset."""
+
 import logging
 import random
 from datetime import datetime, timezone
@@ -38,6 +40,7 @@ def _store_otp(email: str, code: str) -> None:
 
 
 def _verify_otp(email: str, code: str) -> bool:
+    """Validate and consume a single-use OTP."""
     key = _otp_key(email)
     stored_code = _redis_client.get(key)
     if stored_code != code:
@@ -61,15 +64,18 @@ def valid_password(password: str) -> bool:
 
 
 def ensure_password(password: str):
+    """Enforce the password policy used by registration and password reset."""
     if not valid_password(password):
         fail(422, "VALIDATION_ERROR", "Mật khẩu không đáp ứng chính sách bảo mật", ["Tối thiểu 8 ký tự gồm chữ hoa, chữ thường, số, ký tự đặc biệt"])
 
 
 def register(db: Session, email: str, password: str, full_name: str):
+    """Create a pending user and send a verification OTP."""
     ensure_password(password)
     email = email.strip().lower()
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
+        # Unverified accounts can request a fresh OTP instead of failing registration.
         if existing.email_verified_at is None or existing.status == "pending_verification":
             return resend_verification_otp(db, email)
         fail(409, "CONFLICT", "Email đã tồn tại")
@@ -128,6 +134,7 @@ def resend_verification_otp(db: Session, email: str):
 
 
 def login(db: Session, email: str, password: str):
+    """Authenticate an active, verified user and issue access/refresh tokens."""
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
     if not user or user.deleted_at is not None or not verify_password(password, user.password):
         fail(401, "UNAUTHORIZED", "Sai thông tin đăng nhập")
@@ -141,6 +148,7 @@ def login(db: Session, email: str, password: str):
 
 
 def refresh(refresh_token: str):
+    """Issue a new access token from a valid, non-revoked refresh token."""
     if _is_refresh_token_revoked(refresh_token):
         fail(401, "UNAUTHORIZED", "Refresh token đã bị thu hồi")
     try:
@@ -154,6 +162,7 @@ def refresh(refresh_token: str):
 
 
 def logout(refresh_token: str):
+    """Revoke the refresh token for the lifetime of this process."""
     if not refresh_token:
         fail(422, "VALIDATION_ERROR", "Thiếu refresh_token")
     _revoke_refresh_token(refresh_token)
