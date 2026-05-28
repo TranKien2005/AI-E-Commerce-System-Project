@@ -1,3 +1,5 @@
+"""Seller workflows for shop profile, products, order fulfillment, stats, and shop chat."""
+
 import logging
 from datetime import datetime, timezone
 
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _send_email_after_commit(to_email: str, subject: str, html: str):
+    """Send non-critical buyer email after order updates commit."""
     try:
         send_email(to_email, subject, html)
     except Exception:
@@ -20,10 +23,12 @@ def _send_email_after_commit(to_email: str, subject: str, html: str):
 
 
 def _get_owner_shop(db: Session, user: User):
+    """Return the single shop owned by the seller account."""
     return db.scalar(select(Shop).where(Shop.owner_id == user.id))
 
 
 def _ensure_order_owned_by_shop(db: Session, shop: Shop | None, order_id: int):
+    """Guard seller order reads to orders containing at least one product from the shop."""
     if not shop:
         return
     owns = db.scalar(select(OrderItem.id).join(Product, Product.id == OrderItem.product_id).where(OrderItem.order_id == order_id, Product.shop_id == shop.id))
@@ -32,6 +37,7 @@ def _ensure_order_owned_by_shop(db: Session, shop: Shop | None, order_id: int):
 
 
 def _ensure_order_updatable_by_shop(db: Session, shop: Shop | None, order_id: int):
+    """Guard seller order status updates to orders containing shop products."""
     if not shop:
         return
     owns = db.scalar(select(OrderItem.id).join(Product, Product.id == OrderItem.product_id).where(OrderItem.order_id == order_id, Product.shop_id == shop.id))
@@ -40,6 +46,7 @@ def _ensure_order_updatable_by_shop(db: Session, shop: Shop | None, order_id: in
 
 
 def _ensure_shipping_updatable_by_shop(db: Session, shop: Shop | None, order_id: int):
+    """Guard seller shipping updates to orders containing shop products."""
     if not shop:
         return
     owns = db.scalar(select(OrderItem.id).join(Product, Product.id == OrderItem.product_id).where(OrderItem.order_id == order_id, Product.shop_id == shop.id))
@@ -48,6 +55,7 @@ def _ensure_shipping_updatable_by_shop(db: Session, shop: Shop | None, order_id:
 
 
 def update_shop(db: Session, user: User, name: str, description: str):
+    """Create or update the seller's shop profile."""
     shop = _get_owner_shop(db, user)
     if not shop:
         shop = Shop(owner_id=user.id, name=name, description=description)
@@ -65,6 +73,7 @@ def _ensure_category_exists(db: Session, category_id: int | None):
 
 
 def create_product(db: Session, user: User, name: str, description: str, price: float, stock: int, category_id: int | None):
+    """Create a product under the seller's shop."""
     shop = _get_owner_shop(db, user)
     if not shop:
         fail(400, "BAD_REQUEST", "Người bán chưa có cửa hàng")
@@ -101,6 +110,7 @@ def update_product(db: Session, user: User, product_id: int, name: str, descript
 
 
 def delete_product(db: Session, user: User, product_id: int):
+    """Soft delete a product so historical order references remain valid."""
     shop = _get_owner_shop(db, user)
     p = db.get(Product, product_id)
     if not p or not shop or p.shop_id != shop.id:
@@ -124,6 +134,7 @@ def _ensure_product_owned_by_user(db: Session, user: User, product_id: int) -> P
 
 
 def _promote_primary_image(db: Session, product_id: int):
+    """Ensure a product still has one primary image after updates/deletes."""
     remaining = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id).order_by(ProductImage.id.asc())).all()
     if remaining and not any(image.is_primary for image in remaining):
         remaining[0].is_primary = True
@@ -131,6 +142,7 @@ def _promote_primary_image(db: Session, product_id: int):
 
 
 def add_product_image(db: Session, user: User, product_id: int, url: str, is_primary: bool):
+    """Attach an image and maintain the single-primary-image invariant."""
     _ensure_product_owned_by_user(db, user, product_id)
     existing = db.scalars(select(ProductImage).where(ProductImage.product_id == product_id)).all()
     should_be_primary = is_primary or not existing
@@ -175,6 +187,7 @@ def delete_product_image(db: Session, user: User, image_id: int):
 
 
 def _serialize_order_for_seller(db: Session, order: Order, shop: Shop | None = None) -> dict:
+    """Serialize only the items visible to the current seller when a shop is provided."""
     item_stmt = select(OrderItem).where(OrderItem.order_id == order.id)
     if shop:
         item_stmt = item_stmt.join(Product, Product.id == OrderItem.product_id).where(Product.shop_id == shop.id)
@@ -233,6 +246,7 @@ def get_order(db: Session, user: User, order_id: int):
 
 
 def update_order_status(db: Session, user: User, order_id: int, status: str):
+    """Apply the allowed seller order status transition and notify the buyer."""
     shop = _get_owner_shop(db, user)
     order = db.get(Order, order_id)
     if not order:
@@ -258,6 +272,7 @@ def update_order_status(db: Session, user: User, order_id: int, status: str):
 
 
 def update_shipping(db: Session, user: User, order_id: int, shipping_status: str, shipping_note: str):
+    """Update shipping fields for an order visible to the seller's shop."""
     shop = _get_owner_shop(db, user)
     order = db.get(Order, order_id)
     if not order:
@@ -289,11 +304,12 @@ def patch_chatbot_config(db: Session, user: User, api_key: str, prompt: str, tem
 
 
 def get_stats(db: Session, user: User, from_date: str | None = None, to_date: str | None = None):
+    """Aggregate shop revenue, order count, and best-selling products."""
     shop = _get_owner_shop(db, user)
     if not shop:
         return ok({"revenue": 0, "orders": 0, "best_selling": []})
 
-    # Find all orders that contain products from this shop
+    # Find all orders that contain products from this shop.
     order_ids_q = (
         select(Order.id)
         .join(OrderItem, OrderItem.order_id == Order.id)
@@ -322,7 +338,7 @@ def get_stats(db: Session, user: User, from_date: str | None = None, to_date: st
         )
         revenue = float(revenue_result) if revenue_result else 0.0
 
-    # Best selling products
+    # Best-selling products are computed from order item quantities.
     best_selling_q = (
         select(Product.id, Product.name, func.sum(OrderItem.quantity).label("sold"))
         .join(OrderItem, OrderItem.product_id == Product.id)
