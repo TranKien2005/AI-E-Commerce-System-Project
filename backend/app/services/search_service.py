@@ -1,3 +1,5 @@
+"""Catalog and marketplace search helpers for buyer-facing product/shop discovery."""
+
 from app.models.entities import Shop, Product, OrderItem, Category, Review, ProductImage
 import logging
 import re
@@ -9,12 +11,14 @@ logger = logging.getLogger(__name__)
 _IMAGE_URL_RE = re.compile(r"https?://\S+")
 
 def sanitize_image_url(value: str | None) -> str | None:
+    """Extract the first HTTP(S) URL from imported image fields."""
     if not value:
         return None
     match = _IMAGE_URL_RE.search(value.strip())
     return match.group(0) if match else None
 
 def _product_metrics(db: Session, product_id: int) -> tuple[float | None, int, int]:
+    """Calculate rating, review count, and sold count for listing cards."""
     rating_row = db.execute(
         select(func.avg(Review.rating), func.count(Review.id)).where(Review.product_id == product_id)
     ).one()
