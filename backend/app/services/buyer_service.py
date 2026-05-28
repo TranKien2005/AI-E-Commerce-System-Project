@@ -1,3 +1,5 @@
+"""Buyer/account workflows: profile, cart, checkout, orders, reviews, notifications, and reports."""
+
 import logging
 import random
 from datetime import datetime, timezone
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _send_email_after_commit(to_email: str, subject: str, html: str):
+    """Send non-critical email after commit so order state remains durable if email fails."""
     try:
         send_email(to_email, subject, html)
     except Exception:
@@ -52,6 +55,7 @@ def delete_account(db: Session, user: User, current_password: str):
 
 
 def add_cart(db: Session, user: User, product_id: int, quantity: int):
+    """Add a product to the user's account-scoped cart and notify active clients."""
     product = db.get(Product, product_id)
     if not product or product.deleted_at is not None:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
@@ -72,11 +76,12 @@ def add_cart(db: Session, user: User, product_id: int, quantity: int):
 
 
 def create_order(db: Session, user: User, shipping_address: str):
+    """Convert the current cart into one order, decrement stock, notify buyer and sellers."""
     cart_items = db.scalars(select(CartItem).where(CartItem.user_id == user.id)).all()
     if not cart_items:
         fail(400, "BAD_REQUEST", "Giỏ hàng trống")
 
-    # Validate stock for all items first
+    # Validate every cart line before mutating stock or creating order items.
     for c in cart_items:
         p = db.get(Product, c.product_id)
         if not p or p.deleted_at is not None:
@@ -100,7 +105,7 @@ def create_order(db: Session, user: User, shipping_address: str):
             continue
         total += float(p.price) * c.quantity
         db.add(OrderItem(order_id=order.id, product_id=p.id, quantity=c.quantity, price=p.price))
-        # Deduct stock
+        # Stock is deducted at checkout; cancellation restores it while allowed.
         p.stock -= c.quantity
         db.delete(c)
     order.total_price = total
@@ -117,6 +122,7 @@ def create_order(db: Session, user: User, shipping_address: str):
 
 
 def pay_order(db: Session, user: User, order_id: int, x_idempotency_key: str | None):
+    """Create a fake online payment result, preserving idempotency by request key."""
     order = db.get(Order, order_id)
     if not order or order.user_id != user.id:
         fail(404, "NOT_FOUND", "Không tìm thấy đơn hàng")
@@ -152,6 +158,7 @@ def pay_order(db: Session, user: User, order_id: int, x_idempotency_key: str | N
 
 
 def create_review(db: Session, user: User, product_id: int, rating: int, comment: str, title: str = ""):
+    """Create or update a verified review only after a delivered purchase."""
     product = db.get(Product, product_id)
     if not product:
         fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
@@ -183,6 +190,7 @@ def list_categories(db: Session):
 
 
 def get_cart(db: Session, user: User):
+    """Return cart lines with product summary data and the best available image."""
     rows = db.execute(
         select(CartItem, Product)
         .join(Product, Product.id == CartItem.product_id)
@@ -284,13 +292,14 @@ def get_order(db: Session, user: User, order_id: int):
 
 
 def cancel_order(db: Session, user: User, order_id: int):
+    """Cancel a mutable order, restore stock, and notify the buyer."""
     order = db.get(Order, order_id)
     if not order or order.user_id != user.id:
         fail(404, "NOT_FOUND", "Không tìm thấy đơn hàng")
     if order.status not in {"pending", "processing"}:
         fail(400, "BAD_REQUEST", "Không thể hủy đơn ở trạng thái hiện tại")
     order.status = "cancelled"
-    # Restore stock
+    # Restore inventory for every item that was deducted during checkout.
     order_items = db.scalars(select(OrderItem).where(OrderItem.order_id == order.id)).all()
     for oi in order_items:
         p = db.get(Product, oi.product_id)
