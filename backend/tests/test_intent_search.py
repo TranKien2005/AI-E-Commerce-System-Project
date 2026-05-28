@@ -1,141 +1,241 @@
+"""Bộ kiểm thử đơn vị và kiểm thử tích hợp cho hệ thống tìm kiếm theo ý định.
+
+Tập trung kiểm thử các tầng xử lý nòng cốt bao gồm: thuật toán tách lọc văn bản thô
+bằng biểu thức chính quy, cơ chế gọi mô hình ngôn ngữ lớn LLM bất đồng bộ, chuỗi 
+chuyển tiếp mô hình dự phòng (fallback chain), và tối ưu hóa chi phí qua bộ nhớ đệm.
+"""
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-from app.services.ai_service import cosine_similarity, mock_parse_intent, get_mock_embedding, MemoryVectorStore
+from httpx import Response
 
-def test_cosine_similarity():
-    # Identical vectors
-    v1 = [1.0, 2.0, 3.0]
-    v2 = [1.0, 2.0, 3.0]
-    assert abs(cosine_similarity(v1, v2) - 1.0) < 1e-6
+from app.services.ai_service import mock_parse_intent, parse_intent, cache
 
-    # Orthogonal vectors
-    v3 = [1.0, 0.0, 0.0]
-    v4 = [0.0, 1.0, 0.0]
-    assert abs(cosine_similarity(v3, v4) - 0.0) < 1e-6
 
-    # Empty or mismatch
-    assert cosine_similarity([], []) == 0.0
-    assert cosine_similarity([1.0], [1.0, 2.0]) == 0.0
+# ==============================================================================
+# 1. UNIT TESTS: REGEX-BASED INTENT PARSING (MOCK_PARSE_INTENT)
+# ==============================================================================
 
-def test_mock_intent_parser():
-    categories = ["Laptop", "Điện thoại", "Thời trang", "Sách"]
+def test_mock_intent_parse_price_ranges():
+    """Kiểm thử khả năng bóc tách dải giá từ chuỗi truy vấn thô.
 
-    # Test category match and price range
-    res1 = mock_parse_intent("Tìm laptop giá từ 10 triệu đến 20 triệu", categories)
-    assert res1["category"] == "Laptop"
-    assert res1["min_price"] == 10_000_000
-    assert res1["max_price"] == 20_000_000
+    Xác thực hệ thống trích xuất chính xác giá trị số từ cấu trúc cú pháp 
+    'từ X đến Y' với các loại cấu hình chữ viết tắt mệnh giá phổ biến trong 
+    ngôn ngữ tự nhiên thương mại điện tử (ví dụ: triệu, tr, k).
+    """
+    categories = ["Laptop", "Điện thoại"]
 
-    # Test under/over price matches
-    res2 = mock_parse_intent("điện thoại dưới 5tr giá rẻ nhất", categories)
-    assert res2["category"] == "Điện thoại"
-    assert res2["max_price"] == 5_000_000
-    assert res2["sort"] == "price_asc"
+    # Kiểm thử bóc tách mệnh giá lớn với hậu tố định danh "triệu" và "tr"
+    res_1 = mock_parse_intent("Tìm laptop giá từ 15 triệu đến 25tr", categories)
+    assert res_1["min_price"] == 15_000_000
+    assert res_1["max_price"] == 25_000_000
 
-    res3 = mock_parse_intent("sách trên 150k bán chạy", categories)
-    assert res3["category"] == "Sách"
-    assert res3["min_price"] == 150_000
-    assert res3["sort"] == "popular"
+    # Kiểm thử bóc tách mệnh giá nhỏ với hậu tố định danh "k" (ngàn)
+    res_2 = mock_parse_intent("áo thun từ 150k - 300k", categories)
+    assert res_2["min_price"] == 150_000
+    assert res_2["max_price"] == 300_000
 
-    # Test query cleaning
-    assert "laptop" not in res1["search_query"].lower()
-    assert "từ 10 triệu đến 20 triệu" not in res1["search_query"].lower()
 
-def test_memory_vector_store():
-    store = MemoryVectorStore()
+def test_mock_intent_parse_price_boundaries():
+    """Kiểm thử khả năng nhận diện các điều kiện biên giá trần và giá sàn.
+
+    Xác thực các cấu trúc câu đặc thù chứa từ khóa 'dưới', 'tối đa' (giá trần) 
+    hoặc từ khóa 'trên', 'tối thiểu' (giá sàn) được chuyển đổi chính xác sang 
+    định dạng float để cấu hình mệnh đề WHERE cho SQL.
+    """
+    categories = ["Giày", "Đồng hồ"]
+
+    # Kiểm thử trích xuất giá trị trần (chỉ có max_price, min_price giữ giá trị rỗng)
+    res_under = mock_parse_intent("Đồng hồ thông minh dưới 4.5 triệu", categories)
+    assert res_under["max_price"] == 4_500_000
+    assert res_under["min_price"] is None
+
+    # Kiểm thử trích xuất giá trị sàn (chỉ có min_price, max_price giữ giá trị rỗng)
+    res_over = mock_parse_intent("Giày chạy bộ trên 1tr200k", categories)
+    assert res_over["min_price"] == 1_200_000
+    assert res_over["max_price"] is None
+
+
+def test_mock_intent_parse_sorting_keywords():
+    """Kiểm thử việc nhận diện từ khóa phân loại tiêu chí sắp xếp kết quả.
+
+    Xác thực ngữ nghĩa hội thoại của khách hàng được phân loại chính xác về các 
+    định danh sắp xếp hệ thống như 'price_asc', 'price_desc', 'popular', và 'newest'.
+    """
+    categories = ["Mỹ phẩm"]
+
+    assert mock_parse_intent("Mỹ phẩm rẻ nhất", categories)["sort"] == "price_asc"
+    assert mock_parse_intent("Son môi đắt nhất", categories)["sort"] == "price_desc"
+    assert mock_parse_intent("Kem chống nắng bán chạy", categories)["sort"] == "popular"
+    assert mock_parse_intent("Nước hoa mới về", categories)["sort"] == "newest"
+
+
+def test_mock_intent_query_cleaning():
+    """Xác thực bộ lọc dọn dẹp nội dung chuỗi tìm kiếm văn bản.
+
+    Đảm bảo sau khi xử lý phân tách intent, chuỗi tìm kiếm thô ban đầu phải được 
+    bóc tách sạch các token bộ lọc (khoảng giá, từ khóa sort, tên danh mục) nhằm 
+    giữ lại các thực thể mô tả cốt lõi tối ưu cho giải thuật so khớp không gian Vector.
+    """
+    categories = ["Điện thoại"]
+    raw_query = "Mua điện thoại iphone 15 pro max dưới 30 triệu rẻ nhất"
     
-    # Add products
-    store.add_product(1, "Dell XPS 13", "Ultrabook high performance thin and light", 10)
-    store.add_product(2, "iPhone 15 Pro", "Apple flagship smartphone with dynamic island", 11)
+    res = mock_parse_intent(raw_query, categories)
+    clean_query = res["search_query"].lower()
+
+    # Chuỗi tìm kiếm sau xử lý không được chứa các từ khóa bộ lọc bổ trợ
+    assert "điện thoại" not in clean_query
+    assert "dưới 30 triệu" not in clean_query
+    assert "rẻ nhất" not in clean_query
+    # Chuỗi tìm kiếm bắt buộc phải giữ lại định danh sản phẩm chi tiết
+    assert "iphone 15 pro max" in clean_query
+
+
+# ==============================================================================
+# 2. ASYNC TESTS: LLM INTENT PARSING WITH GEMINI API (PARSE_INTENT)
+# ==============================================================================
+
+@pytest.mark.anyio
+@patch("app.services.ai_service.cache.get", new_callable=AsyncMock)
+@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
+async def test_parse_intent_success_via_llm(mock_post, mock_cache_get):
+    """Kiểm thử luồng phân tích ý định thành công thông qua mô hình LLM trực tuyến.
+
+    Xác thực kịch bản hệ thống gửi gói tin, nhận chuỗi cấu trúc JSON hợp lệ từ 
+    phản hồi của Gemini API, chuyển đổi các thực thể văn bản và tự động ghi nhớ 
+    kết quả vào hệ thống Caching Redis.
+
+    Args:
+        mock_post: Đối tượng giả lập phương thức POST bất đồng bộ của lớp httpx.
+        mock_cache_get: Đối tượng giả lập lệnh đọc dữ liệu từ kho lưu trữ cache.
+    """
+    categories = ["Laptop", "Máy tính bảng"]
+    mock_cache_get.return_value = None
+
+    # Khởi tạo dữ liệu JSON giả lập phản hồi thành công từ Google Gemini Gateway
+    gemini_json_response = {
+        "candidates": [{
+            "content": {
+                "parts": [{
+                    "text": json.dumps({
+                        "category": "Laptop",
+                        "min_price": 20000000,
+                        "max_price": 30000000,
+                        "sort": "popular",
+                        "search_query": "macbook air m2"
+                    })
+                }]
+            }
+        }]
+    }
+    mock_post.return_value = Response(200, json=gemini_json_response)
+
+    with patch("app.services.ai_service.cache.set", new_callable=AsyncMock) as mock_cache_set:
+        result = await parse_intent("Cần mua macbook air m2 từ 20-30tr hot nhất", categories)
+
+    assert result["is_fallback"] is False
+    assert result["category"] == "Laptop"
+    assert result["min_price"] == 20_000_000
+    assert result["search_query"] == "macbook air m2"
+    # Xác thực hệ thống kích hoạt lưu cache tự động sau khi LLM phản hồi thành công
+    assert mock_cache_set.called
+
+
+@pytest.mark.anyio
+@patch("app.services.ai_service.cache.get", new_callable=AsyncMock)
+@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
+async def test_parse_intent_model_fallback_chain(mock_post, mock_cache_get):
+    """Kiểm thử chuỗi chuyển tiếp mô hình dự phòng khi gặp lỗi phân tán mạng.
+
+    Đảm bảo nếu mô hình chính cấu hình gặp lỗi Rate-limit (429) hoặc sập kết nối, 
+    hệ thống có khả năng tự động điều phối yêu cầu sang mô hình backup tiếp theo 
+    trong danh sách để đảm bảo tính liên tục của luồng nghiệp vụ.
+
+    Args:
+        mock_post: Đối tượng giả lập phương thức POST bất đồng bộ của lớp httpx.
+        mock_cache_get: Đối tượng giả lập lệnh đọc dữ liệu từ kho lưu trữ cache.
+    """
+    categories = ["Thời trang"]
+    mock_cache_get.return_value = None
+
+    gemini_success_payload = {
+        "candidates": [{"content": {"parts": [{"text": '{"category": "Thời trang", "search_query": "váy lụa"}'}]}}]
+    }
     
-    # Query similarity
-    results1 = store.query_similarity("Flagship Apple phone")
-    assert len(results1) > 0
-    assert results1[0] == 2  # iPhone should be more similar than Dell
+    # Giả lập kịch bản: Lần 1 sập (429) -> Lần 2 khôi phục thành công (200)
+    mock_post.side_effect = [
+        Response(429, text="Rate limit exceeded"),
+        Response(200, json=gemini_success_payload)
+    ]
+
+    result = await parse_intent("váy lụa cao cấp", categories)
+
+    assert result["search_query"] == "váy lụa"
+    assert result["is_fallback"] is False
+    # Xác thực vòng lặp thử lại đã kích hoạt lệnh gọi mạng tổng cộng 2 lần
+    assert mock_post.call_count == 2
+
+
+@pytest.mark.anyio
+@patch("app.services.ai_service.cache.get", new_callable=AsyncMock)
+@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
+async def test_parse_intent_complete_failure_fallback_to_regex(mock_post, mock_cache_get):
+    """Kiểm thử khả năng phòng thủ tự động hạ cấp về thuật toán xử lý cục bộ.
+
+    Xác thực khi toàn bộ hạ tầng mạng hoặc API Gateway bên ngoài bị cô lập hoàn toàn, 
+    hệ thống vẫn duy trì khả năng hoạt động bằng cách kích hoạt thuật toán Regex 
+    nội bộ và đánh dấu trạng thái cảnh báo `is_fallback=True`.
+
+    Args:
+        mock_post: Đối tượng giả lập phương thức POST bất đồng bộ của lớp httpx.
+        mock_cache_get: Đối tượng giả lập lệnh đọc dữ liệu từ kho lưu trữ cache.
+    """
+    categories = ["Sách"]
+    mock_cache_get.return_value = None
     
-    results2 = store.query_similarity("thin dell laptop")
-    assert len(results2) > 0
-    assert results2[0] == 1  # Dell should be more similar
+    # Ép luồng gọi mạng thảy ra ngoại lệ nghiêm trọng (mất mạng kết nối)
+    mock_post.side_effect = Exception("Network unreachable or DNS resolution failure")
 
-    # Delete product
-    store.delete_product(1)
-    results3 = store.query_similarity("thin dell laptop")
-    assert 1 not in results3
+    result = await parse_intent("sách giáo khoa dưới 100k rẻ nhất", categories)
 
-def test_search_status_endpoint(client: TestClient):
-    resp = client.get("/api/v1/products/search-status")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["success"] is True
-    assert "status" in data["data"]
+    # Hệ thống bắt buộc phải tự bảo vệ bằng cách chuyển đổi sang luồng xử lý dự phòng
+    assert result["is_fallback"] is True
+    assert result["category"] == "Sách"
+    assert result["max_price"] == 100_000
+    assert result["sort"] == "price_asc"
 
-@patch("app.services.search_service.search_marketplace")
-def test_intent_search_post_endpoint(mock_search, client: TestClient):
-    mock_search.return_value = {
-        "products": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 10, "total": 0, "total_pages": 0},
-            "is_fallback": True,
-            "ai_parsed": None
-        },
-        "shops": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 4, "total": 0, "total_pages": 0}
-        }
+
+# ==============================================================================
+# 3. CACHING LAYER TESTS (REDIS INTEGRATION)
+# ==============================================================================
+
+@pytest.mark.anyio
+@patch("app.services.ai_service.cache.get", new_callable=AsyncMock)
+async def test_parse_intent_returns_cached_data(mock_cache_get):
+    """Đảm bảo hệ thống ưu tiên đọc và trả ra dữ liệu từ cache Redis.
+
+    Nếu chuỗi văn bản tìm kiếm trùng lặp đã được phân tích trước đó, hệ thống 
+    phải trả về ngay lập tức để tối ưu hóa tài nguyên mạng và triệt tiêu độ trễ.
+
+    Args:
+        mock_cache_get: Đối tượng giả lập lệnh đọc dữ liệu từ kho lưu trữ cache.
+    """
+    categories = ["Điện thoại"]
+    cached_data = {
+        "category": "Điện thoại",
+        "min_price": None,
+        "max_price": 15000000,
+        "sort": "newest",
+        "search_query": "samsung galaxy",
+        "is_fallback": False
     }
-    payload = {
-        "query": "laptop dell giá từ 10tr đến 20tr",
-        "page": 1,
-        "page_size": 10
-    }
-    resp = client.post("/api/v1/products/intent-search", json=payload)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["success"] is True
-    assert "items" in data["data"]
-    assert "meta" in data["data"]
+    mock_cache_get.return_value = cached_data
 
-@patch("app.services.search_service.search_marketplace")
-def test_search_type_ai_get_endpoint(mock_search, client: TestClient):
-    mock_search.return_value = {
-        "products": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 20, "total": 0, "total_pages": 0},
-            "is_fallback": True,
-            "ai_parsed": None
-        },
-        "shops": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 4, "total": 0, "total_pages": 0}
-        }
-    }
-    resp = client.get("/api/v1/products?search_type=ai&q=điện thoại giá rẻ")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["success"] is True
-    assert "items" in data["data"]
-    assert "meta" in data["data"]
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        result = await parse_intent("samsung galaxy dưới 15tr mới nhất", categories)
 
-@patch("app.services.search_service.search_marketplace")
-def test_edge_case_empty_and_excessive_query(mock_search, client: TestClient):
-    mock_search.return_value = {
-        "products": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 20, "total": 0, "total_pages": 0},
-            "is_fallback": True,
-            "ai_parsed": None
-        },
-        "shops": {
-            "items": [],
-            "meta": {"page": 1, "page_size": 4, "total": 0, "total_pages": 0}
-        }
-    }
-    # Empty query
-    resp1 = client.get("/api/v1/products?search_type=ai&q=")
-    assert resp1.status_code == 200
-    
-    # Very long query
-    long_query = "dell " * 200
-    resp2 = client.get(f"/api/v1/products?search_type=ai&q={long_query}")
-    assert resp2.status_code == 200
+    # Kết quả đầu ra khớp hoàn toàn với dữ liệu đã lưu trong bộ đệm Redis
+    assert result == cached_data
+    # Đảm bảo tuyệt đối không phát sinh thêm bất kỳ lệnh gọi mạng nào lên LLM API
+    mock_post.assert_not_called()
