@@ -8,7 +8,7 @@ from app.core.responses import fail, ok
 from app.db.session import get_db
 from app.models.entities import Category, Conversation, Message, Notification, Product, ProductImage, ProductVideo, Review, Shop, User
 from app.schemas.buyer import CartAddIn, ChangePasswordIn, CreateOrderIn, DeleteAccountIn, IntentSearchIn, MessageIn, NotificationReadIn, ReportIn, ReviewIn, SellerRequestIn, UpdateMeIn
-from app.services import buyer_service, search_service
+from app.services import buyer_service, chatbot_service, search_service
 from app.services.chat_events import chat_events
 from app.services.search_service import sanitize_image_url
 
@@ -288,8 +288,13 @@ def send_message(conversation_id: int, payload: MessageIn, db: Session = Depends
     m = Message(conversation_id=conversation_id, sender_id=current_user.id, content=payload.content, is_bot=False, is_read=False)
     db.add(m)
     db.commit()
-    payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": m.id, "shop_id": conversation.shop_id, "sender_id": current_user.id}
-    chat_events.publish_from_thread(conversation.seller_id, payload)
+    event_payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": m.id, "shop_id": conversation.shop_id, "sender_id": current_user.id}
+    chat_events.publish_from_thread(conversation.seller_id, event_payload)
+    bot_message = chatbot_service.create_chatbot_message(db, conversation, payload.content)
+    if bot_message:
+        bot_event_payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": bot_message.id, "shop_id": conversation.shop_id, "sender_id": conversation.seller_id}
+        chat_events.publish_from_thread(current_user.id, bot_event_payload)
+        chat_events.publish_from_thread(conversation.seller_id, bot_event_payload)
     return ok({"id": m.id})
 
 

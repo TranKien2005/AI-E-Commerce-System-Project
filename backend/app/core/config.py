@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     AI_SEARCH_API_KEY: str = ""
     AI_SEARCH_TIMEOUT_SECONDS: int = 5
 
+    GEMINI_API_KEY: str = ""
+    CHATBOT_ENABLED: bool = False
+    CHATBOT_MODEL: str = "gemma-4-26b-a4b-it"
+    CHATBOT_TIMEOUT_SECONDS: int = 20
+
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_DEFAULT: str = "120/minute"
     RATE_LIMIT_AUTH: str = "10/minute"
