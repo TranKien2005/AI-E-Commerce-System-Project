@@ -7,6 +7,42 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
+  database-migration-check:
+    name: Database Migration Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ecommerce
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install alembic psycopg2-binary
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run Migration Dry-Run
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5433/ecommerce
+        run: |
+          alembic upgrade head
+          alembic check
   docker-build:
     name: Docker Build & Push
     runs-on: ubuntu-latest
