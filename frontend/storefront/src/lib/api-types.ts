@@ -26,11 +26,19 @@ export type ShopListItem = {
   top_product_image?: string | null;
 };
 
+export type AiParsed = {
+  category?: string | null;
+  min_price?: number | null;
+  max_price?: number | null;
+  sort?: string | null;
+  search_query?: string | null;
+};
+
 export type MarketplaceSearchResult = {
   shops: Paginated<ShopListItem>;
   products: Paginated<ProductListItem>;
   is_fallback?: boolean;
-  ai_parsed?: any;
+  ai_parsed?: AiParsed | null;
 };
 
 export type ProductListItem = {

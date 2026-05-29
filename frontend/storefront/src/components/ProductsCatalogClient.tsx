@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronDown, Search, SlidersHorizontal, Sparkles, Star, Store } from "lucide-react";
 import AddToCartButton from "@/components/AddToCartButton";
 import SearchModeBar from "@/components/SearchModeBar";
-import type { Category, PageMeta, ProductListItem, ShopListItem } from "@/lib/api-types";
+import type { AiParsed, Category, PageMeta, ProductListItem, ShopListItem } from "@/lib/api-types";
 import { formatVnd } from "@/lib/format";
 import { safeImageUrl } from "@/lib/image";
 import { cn } from "@/lib/utils";
@@ -65,7 +65,7 @@ export default function ProductsCatalogClient({
   minRating: string;
   sort: string;
   isFallback?: boolean;
-  aiParsed?: any;
+  aiParsed?: AiParsed | null;
 }) {
   const current = { mode, q: query, category_id: categoryId, shop_id: shopId, min_price: minPrice, max_price: maxPrice, min_rating: minRating, sort };
   const categoryCounts = new Map<number, { id: number; name: string; count: number }>();

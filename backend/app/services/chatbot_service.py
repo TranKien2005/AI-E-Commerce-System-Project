@@ -1,5 +1,7 @@
 import logging
+import json
 import re
+from collections.abc import Iterator
 
 import requests
 from sqlalchemy import select
@@ -84,6 +86,40 @@ def _extract_text(response_json: dict) -> str:
     return ""
 
 
+def _chatbot_prompt(db: Session, conversation: Conversation, buyer_message: str) -> str:
+    shop = db.get(Shop, conversation.shop_id) if conversation.shop_id else None
+    return f"""Current shop: {shop.name if shop else "Marketplace"}
+
+Catalog context:
+{_catalog_context(db)}
+
+Recent conversation:
+{_conversation_context(db, conversation)}
+
+Latest buyer message:
+{buyer_message}
+
+Write the next assistant chat message only. Do not restate instructions, roles, catalog rows, or analysis."""
+
+
+def _gemma_request_body(prompt: str) -> dict:
+    return {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.4,
+            "maxOutputTokens": 220,
+        },
+    }
+
+
 def _looks_prompt_like(text: str) -> bool:
     lowered = text.lower()
     return any(
@@ -143,44 +179,54 @@ def _call_gemma(prompt: str) -> str:
             "x-goog-api-key": settings.GEMINI_API_KEY,
             "Content-Type": "application/json",
         },
-        json={
-            "systemInstruction": {
-                "parts": [{"text": SYSTEM_PROMPT}],
-            },
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": prompt}],
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.4,
-                "maxOutputTokens": 220,
-            },
-        },
+        json=_gemma_request_body(prompt),
         timeout=settings.CHATBOT_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     return _extract_text(response.json())
 
 
+def _stream_gemma(prompt: str) -> Iterator[str]:
+    model = settings.CHATBOT_MODEL.strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
+    response = requests.post(
+        url,
+        params={"alt": "sse"},
+        headers={
+            "x-goog-api-key": settings.GEMINI_API_KEY,
+            "Content-Type": "application/json",
+        },
+        json=_gemma_request_body(prompt),
+        timeout=settings.CHATBOT_TIMEOUT_SECONDS,
+        stream=True,
+    )
+    response.raise_for_status()
+    for raw_line in response.iter_lines(decode_unicode=True):
+        line = (raw_line or "").strip()
+        if not line or line.startswith(":"):
+            continue
+        if line.startswith("data:"):
+            line = line.removeprefix("data:").strip()
+        if line == "[DONE]":
+            break
+        try:
+            chunk = _extract_text(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+        if chunk:
+            yield chunk
+
+
+def _split_reply_for_stream(reply: str) -> Iterator[str]:
+    for chunk in re.findall(r"\S+\s*", reply):
+        yield chunk
+
+
 def generate_chatbot_reply(db: Session, conversation: Conversation, buyer_message: str) -> str | None:
     if not settings.CHATBOT_ENABLED or not settings.GEMINI_API_KEY:
         return None
 
-    shop = db.get(Shop, conversation.shop_id) if conversation.shop_id else None
-    prompt = f"""Current shop: {shop.name if shop else "Marketplace"}
-
-Catalog context:
-{_catalog_context(db)}
-
-Recent conversation:
-{_conversation_context(db, conversation)}
-
-Latest buyer message:
-{buyer_message}
-
-Write the next assistant chat message only. Do not restate instructions, roles, catalog rows, or analysis."""
+    prompt = _chatbot_prompt(db, conversation, buyer_message)
 
     try:
         reply = _call_gemma(prompt).strip()
@@ -190,6 +236,29 @@ Write the next assistant chat message only. Do not restate instructions, roles, 
         logger.warning("Gemma chatbot reply failed: %s", exc)
 
     return _catalog_fallback_reply(db, conversation, buyer_message)
+
+
+def stream_chatbot_reply(db: Session, conversation: Conversation, buyer_message: str) -> Iterator[str]:
+    if not settings.CHATBOT_ENABLED or not settings.GEMINI_API_KEY:
+        return
+
+    prompt = _chatbot_prompt(db, conversation, buyer_message)
+    streamed_chunks: list[str] = []
+    try:
+        for chunk in _stream_gemma(prompt):
+            streamed_chunks.append(chunk)
+            yield chunk
+        reply = "".join(streamed_chunks).strip()
+        if reply and not _looks_prompt_like(reply):
+            return
+    except Exception as exc:
+        logger.warning("Gemma chatbot stream failed: %s", exc)
+
+    if streamed_chunks:
+        return
+
+    for chunk in _split_reply_for_stream(_catalog_fallback_reply(db, conversation, buyer_message)):
+        yield chunk
 
 
 def create_chatbot_message(db: Session, conversation: Conversation, buyer_message: str) -> Message | None:

@@ -1,4 +1,4 @@
-import { apiFetch } from "./api-client";
+import { API_BASE_URL, ApiError, apiFetch } from "./api-client";
 import type { CartItem, Category, ChatMessage, ConversationSummary, CurrentUser, MarketplaceSearchResult, NotificationItem, OrderDetail, OrderSummary, Paginated, ProductDetail, ProductListItem, Review, ShopListItem } from "./api-types";
 
 export type ProductQuery = {
@@ -101,6 +101,65 @@ export const getChatMessages = (token: string, conversationId: number) =>
 
 export const sendChatMessage = (token: string, conversationId: number, content: string) =>
   apiFetch<{ id: number }>(`/chat/conversations/${conversationId}/messages`, { method: "POST", token, body: JSON.stringify({ content }) });
+
+export type ChatMessageStreamEvent =
+  | { type: "user_message"; message: ChatMessage }
+  | { type: "bot_delta"; delta: string }
+  | { type: "bot_done"; message: ChatMessage }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
+export async function sendChatMessageStream(
+  token: string,
+  conversationId: number,
+  content: string,
+  onEvent: (event: ChatMessageStreamEvent) => void,
+) {
+  const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversationId}/messages/stream`, {
+    method: "POST",
+    headers: {
+      Accept: "application/x-ndjson",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ content }),
+  });
+
+  if (!response.ok) {
+    let message = response.statusText || `HTTP Error ${response.status}`;
+    try {
+      const envelope = await response.json();
+      message = envelope?.error?.message || envelope?.detail || message;
+    } catch {
+      // Keep the HTTP status text.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  if (!response.body) throw new ApiError("Streaming response is unavailable.", response.status);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const parseLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    onEvent(JSON.parse(trimmed) as ChatMessageStreamEvent);
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(parseLine);
+  }
+
+  buffer += decoder.decode();
+  parseLine(buffer);
+}
 
 export const markConversationRead = (token: string, conversationId: number) =>
   apiFetch<{ updated: number }>(`/chat/conversations/${conversationId}/read`, { method: "PATCH", token });

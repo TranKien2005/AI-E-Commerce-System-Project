@@ -1,15 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, Send, Store, X } from "lucide-react";
 import type { ChatMessage, ConversationSummary } from "@/lib/api-types";
 import { openChatEventSocket } from "@/lib/chat-events";
 import { clearTokensIfUnauthorized, getAccessToken } from "@/lib/auth-client";
-import { createChatConversation, getChatConversations, getChatMessages, markConversationRead, sendChatMessage } from "@/lib/storefront-api";
+import { createChatConversation, getChatConversations, getChatMessages, markConversationRead, sendChatMessage, sendChatMessageStream } from "@/lib/storefront-api";
 import { cn } from "@/lib/utils";
 
 type OpenChatDetail = { conversationId?: number; sellerId?: number | null; shopId?: number | null };
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1 py-1">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.2s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.1s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+    </span>
+  );
+}
 
 export default function StorefrontChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,8 +29,25 @@ export default function StorefrontChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+  const [isBotThinking, setIsBotThinking] = useState(false);
+  const [streamingBotId, setStreamingBotId] = useState<number | null>(null);
+  const [streamingText, setStreamingText] = useState("");
+  const messageIdsRef = useRef<Set<number>>(new Set());
+  const streamingConversationRef = useRef<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const selected = conversations.find((item) => item.id === selectedId) ?? null;
+
+  const setLoadedMessages = useCallback((items: ChatMessage[], streamNewBot = false) => {
+    const knownIds = messageIdsRef.current;
+    const streamCandidate = streamNewBot ? [...items].reverse().find((message) => message.is_bot && !knownIds.has(message.id)) : undefined;
+    messageIdsRef.current = new Set(items.map((message) => message.id));
+    setMessages(items);
+    if (streamCandidate) {
+      setStreamingBotId(streamCandidate.id);
+      setStreamingText("");
+    }
+  }, []);
 
   const loadConversations = async (accessToken: string, preferredId?: number) => {
     const data = await getChatConversations(accessToken);
@@ -72,45 +99,171 @@ export default function StorefrontChatWidget() {
       if (event.type === "chat_message" || event.type === "chat_conversation") {
         void loadConversations(accessToken, event.conversation_id);
         if (event.conversation_id === selectedId) {
-          void getChatMessages(accessToken, event.conversation_id).then((data) => setMessages(data.items));
+          if (streamingConversationRef.current === event.conversation_id) return;
+          void getChatMessages(accessToken, event.conversation_id).then((data) => setLoadedMessages(data.items, true));
         }
       }
     });
     return () => socket.close();
-  }, [isOpen, selectedId]);
+  }, [isOpen, selectedId, setLoadedMessages]);
 
   useEffect(() => {
     if (!token || !selectedId) {
-      queueMicrotask(() => setMessages([]));
+      queueMicrotask(() => {
+        messageIdsRef.current = new Set();
+        setMessages([]);
+      });
       return;
     }
     getChatMessages(token, selectedId)
-      .then((data) => setMessages(data.items))
+      .then((data) => setLoadedMessages(data.items))
       .then(() => markConversationRead(token, selectedId))
       .then(() => loadConversations(token))
       .catch((err) => {
         if (clearTokensIfUnauthorized(err)) setToken(null);
+        messageIdsRef.current = new Set();
         setMessages([]);
         setSelectedId(null);
         setError(err instanceof Error ? err.message : "Unable to load messages.");
         void loadConversations(token);
       });
-  }, [selectedId, token]);
+  }, [selectedId, setLoadedMessages, token]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setStreamingBotId(null);
+      setStreamingText("");
+      setIsBotThinking(false);
+    });
+    streamingConversationRef.current = null;
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!streamingBotId || streamingBotId < 0) return;
+    const message = messages.find((item) => item.id === streamingBotId);
+    if (!message) return;
+    let index = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      index = Math.min(message.content.length, index + Math.max(1, Math.ceil(message.content.length / 80)));
+      setStreamingText(message.content.slice(0, index));
+      if (index >= message.content.length) {
+        setStreamingBotId(null);
+        return;
+      }
+      timeoutId = setTimeout(tick, 18);
+    };
+    timeoutId = setTimeout(tick, 80);
+    return () => clearTimeout(timeoutId);
+  }, [messages, streamingBotId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [isBotThinking, messages, streamingText]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const content = text.trim();
-    if (!token || !selectedId || !content) return;
+    if (!token || !selectedId || !selected || !content) return;
     setText("");
+    setError("");
+    const conversationId = selectedId;
+    const tempUserId = -Date.now();
+    const tempBotId = tempUserId - 1;
+    const optimisticMessage: ChatMessage = {
+      id: tempUserId,
+      conversation_id: conversationId,
+      sender_id: 0,
+      content,
+      is_bot: false,
+      is_read: true,
+      created_at: null,
+    };
+    setMessages((current) => [...current, optimisticMessage]);
+    setIsBotThinking(true);
+    streamingConversationRef.current = conversationId;
+
+    let receivedStreamEvent = false;
     try {
-      await sendChatMessage(token, selectedId, content);
+      await sendChatMessageStream(token, conversationId, content, (streamEvent) => {
+        receivedStreamEvent = true;
+        if (streamEvent.type === "user_message") {
+          messageIdsRef.current.add(streamEvent.message.id);
+          setMessages((current) => current.map((message) => (message.id === tempUserId ? streamEvent.message : message)));
+          return;
+        }
+        if (streamEvent.type === "bot_delta") {
+          setIsBotThinking(false);
+          setStreamingBotId(tempBotId);
+          setMessages((current) => {
+            if (current.some((message) => message.id === tempBotId)) return current;
+            return [
+              ...current,
+              {
+                id: tempBotId,
+                conversation_id: conversationId,
+                sender_id: selected.seller_id,
+                content: "",
+                is_bot: true,
+                is_read: false,
+                created_at: null,
+              },
+            ];
+          });
+          setStreamingText((current) => current + streamEvent.delta);
+          return;
+        }
+        if (streamEvent.type === "bot_done") {
+          messageIdsRef.current.add(streamEvent.message.id);
+          setMessages((current) => {
+            const withoutTemporaryBot = current.filter((message) => message.id !== tempBotId);
+            if (withoutTemporaryBot.some((message) => message.id === streamEvent.message.id)) return withoutTemporaryBot;
+            return [...withoutTemporaryBot, streamEvent.message];
+          });
+          setStreamingBotId(null);
+          setStreamingText("");
+          setIsBotThinking(false);
+          streamingConversationRef.current = null;
+          return;
+        }
+        if (streamEvent.type === "done") {
+          setMessages((current) => current.filter((message) => message.id !== tempBotId));
+          setStreamingBotId(null);
+          setStreamingText("");
+          setIsBotThinking(false);
+          streamingConversationRef.current = null;
+          return;
+        }
+        if (streamEvent.type === "error") {
+          setError(streamEvent.message);
+          setIsBotThinking(false);
+          streamingConversationRef.current = null;
+        }
+      });
       window.dispatchEvent(new Event("storefront-auth-changed"));
-      const data = await getChatMessages(token, selectedId);
-      setMessages(data.items);
-      await loadConversations(token);
+      const data = await getChatMessages(token, conversationId);
+      setLoadedMessages(data.items);
+      await loadConversations(token, conversationId);
     } catch (err) {
-      if (clearTokensIfUnauthorized(err)) setToken(null);
-      setError(err instanceof Error ? err.message : "Unable to send message.");
+      if (!receivedStreamEvent) {
+        try {
+          await sendChatMessage(token, conversationId, content);
+          const data = await getChatMessages(token, conversationId);
+          setLoadedMessages(data.items, true);
+          await loadConversations(token, conversationId);
+          return;
+        } catch (fallbackErr) {
+          if (clearTokensIfUnauthorized(fallbackErr)) setToken(null);
+          setError(fallbackErr instanceof Error ? fallbackErr.message : "Unable to send message.");
+        }
+      } else {
+        if (clearTokensIfUnauthorized(err)) setToken(null);
+        setError(err instanceof Error ? err.message : "Unable to send message.");
+      }
+      setMessages((current) => current.filter((message) => message.id !== tempUserId && message.id !== tempBotId));
+    } finally {
+      setIsBotThinking(false);
+      streamingConversationRef.current = null;
     }
   };
 
@@ -167,12 +320,26 @@ export default function StorefrontChatWidget() {
                 </div>
                 {error && <div className="mx-4 mt-3 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</div>}
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
-                  {messages.map((message) => (
-                    <div key={message.id} className={cn("flex", selected && message.sender_id === selected.seller_id ? "justify-start" : "justify-end")}>
-                      <div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-6", selected && message.sender_id === selected.seller_id ? "bg-slate-100 text-slate-600" : "bg-slate-950 text-white")}>{message.content}</div>
+                  {messages.map((message) => {
+                    const isSellerMessage = Boolean(selected && message.sender_id === selected.seller_id);
+                    const isStreaming = message.id === streamingBotId;
+                    const content = isStreaming ? streamingText : message.content;
+                    return (
+                      <div key={message.id} className={cn("flex", isSellerMessage ? "justify-start" : "justify-end")}>
+                        <div className={cn("max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-6", isSellerMessage ? "bg-slate-100 text-slate-600" : "bg-slate-950 text-white")}>
+                          {content}
+                          {isStreaming && <span className="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-current" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {selected && isBotThinking && (
+                    <div className="flex justify-start">
+                      <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-600"><TypingDots /></div>
                     </div>
-                  ))}
+                  )}
                   {selected && messages.length === 0 && <p className="text-center text-sm text-slate-500">No messages in this conversation yet.</p>}
+                  <div ref={messagesEndRef} />
                 </div>
                 <form onSubmit={submit} className="flex gap-2 border-t border-slate-200/70 p-4">
                   <input value={text} onChange={(event) => setText(event.target.value)} disabled={!selectedId} className="soft-input" placeholder="Type a message..." />

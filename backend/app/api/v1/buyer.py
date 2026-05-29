@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends, Header
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -39,6 +42,10 @@ def _mask_message_sender(m: Message) -> dict:
 
 def _ensure_buyer_conversation_member(conversation: Conversation, user_id: int) -> bool:
     return conversation.buyer_id == user_id
+
+
+def _stream_chat_event(event_type: str, **payload) -> str:
+    return json.dumps({"type": event_type, **payload}, ensure_ascii=False) + "\n"
 
 
 def _mask_shop(shop: Shop | None):
@@ -296,6 +303,59 @@ def send_message(conversation_id: int, payload: MessageIn, db: Session = Depends
         chat_events.publish_from_thread(current_user.id, bot_event_payload)
         chat_events.publish_from_thread(conversation.seller_id, bot_event_payload)
     return ok({"id": m.id})
+
+
+@router.post("/chat/conversations/{conversation_id}/messages/stream")
+def send_message_stream(conversation_id: int, payload: MessageIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    conversation = db.get(Conversation, conversation_id)
+    if not conversation:
+        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+    if not _ensure_buyer_conversation_member(conversation, current_user.id):
+        fail(403, "FORBIDDEN", "Không có quyền truy cập")
+
+    user_message = Message(conversation_id=conversation_id, sender_id=current_user.id, content=payload.content, is_bot=False, is_read=False)
+    db.add(user_message)
+    db.commit()
+    db.refresh(user_message)
+
+    buyer_id = current_user.id
+    seller_id = conversation.seller_id
+    shop_id = conversation.shop_id
+    user_event_payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": user_message.id, "shop_id": shop_id, "sender_id": buyer_id}
+    chat_events.publish_from_thread(seller_id, user_event_payload)
+
+    def event_stream():
+        yield _stream_chat_event("user_message", message=_mask_message_sender(user_message))
+        chunks = []
+        try:
+            for chunk in chatbot_service.stream_chatbot_reply(db, conversation, payload.content):
+                chunks.append(chunk)
+                yield _stream_chat_event("bot_delta", delta=chunk)
+        except Exception as exc:
+            yield _stream_chat_event("error", message=str(exc))
+            return
+
+        reply = "".join(chunks).strip()
+        if not reply:
+            yield _stream_chat_event("done")
+            return
+
+        bot_message = Message(
+            conversation_id=conversation.id,
+            sender_id=seller_id,
+            content=reply,
+            is_bot=True,
+            is_read=False,
+        )
+        db.add(bot_message)
+        db.commit()
+        db.refresh(bot_message)
+        bot_event_payload = {"type": "chat_message", "conversation_id": conversation.id, "message_id": bot_message.id, "shop_id": shop_id, "sender_id": seller_id}
+        chat_events.publish_from_thread(buyer_id, bot_event_payload)
+        chat_events.publish_from_thread(seller_id, bot_event_payload)
+        yield _stream_chat_event("bot_done", message=_mask_message_sender(bot_message))
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
 @router.patch("/chat/conversations/{conversation_id}/read")
