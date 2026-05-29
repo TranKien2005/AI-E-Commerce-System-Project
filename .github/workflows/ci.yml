@@ -7,6 +7,45 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
+  backend-test:
+    name: Backend Test (Pytest)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ecommerce
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install pytest pytest-asyncio httpx
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run Pytest
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5433/ecommerce
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest
   backend-lint:
     name: Backend Lint (Ruff)
     runs-on: ubuntu-latest
