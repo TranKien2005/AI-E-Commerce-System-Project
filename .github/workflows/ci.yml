@@ -7,6 +7,21 @@ on:
     branches: [ main, master, develop ]
 
 jobs:
+  kubernetes-manifest-check:
+    name: Kubernetes Manifest Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz -o kubeconform.tar.gz
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/kubeconform
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubeconform -strict -summary -ignore-missing-schemas k8s/*.yaml backend/k8s/*.yaml
   database-migration-check:
     name: Database Migration Check
     runs-on: ubuntu-latest
