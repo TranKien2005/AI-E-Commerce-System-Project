@@ -41,7 +41,8 @@ def _meta(page: int, page_size: int, total: int) -> dict:
     Returns:
         Một dict chứa thông tin phân trang tiêu chuẩn.
     """
-    return {"page": page, "page_size": page_size, "total": total}
+    total_pages = (total + page_size - 1) // page_size if page_size else 1
+    return {"page": page, "page_size": page_size, "total": total, "total_pages": total_pages}
 
 
 def _serialize_product_for_buyer(db: Session, product) -> dict:
@@ -54,14 +55,77 @@ def _serialize_product_for_buyer(db: Session, product) -> dict:
     Returns:
         Một dict chứa thông tin sản phẩm đã làm sạch.
     """
-    return {
-        "id": product.id, 
-        "name": product.name, 
-        "price": product.price,
-        "description": product.description,
-        "category_id": product.category_id,
-        "shop_id": product.shop_id
+    return _serialize_products_for_buyer(db, [product])[0]
+
+
+def _serialize_products_for_buyer(db: Session, products: list[Product]) -> list[dict]:
+    if not products:
+        return []
+
+    product_ids = [product.id for product in products]
+    shop_ids = {product.shop_id for product in products if product.shop_id is not None}
+    category_ids = {product.category_id for product in products if product.category_id is not None}
+
+    shops = {
+        shop.id: shop
+        for shop in db.scalars(select(Shop).where(Shop.id.in_(list(shop_ids)))).all()
+    } if shop_ids else {}
+    categories = {
+        category.id: category
+        for category in db.scalars(select(Category).where(Category.id.in_(list(category_ids)))).all()
+    } if category_ids else {}
+
+    image_by_product: dict[int, str] = {}
+    image_rows = db.execute(
+        select(ProductImage.product_id, ProductImage.url)
+        .where(ProductImage.product_id.in_(product_ids))
+        .order_by(ProductImage.product_id.asc(), ProductImage.is_primary.desc(), ProductImage.id.asc())
+    ).all()
+    for product_id, url in image_rows:
+        if product_id in image_by_product:
+            continue
+        clean_url = sanitize_image_url(url)
+        if clean_url:
+            image_by_product[product_id] = clean_url
+
+    rating_rows = db.execute(
+        select(Review.product_id, func.avg(Review.rating), func.count(Review.id))
+        .where(Review.product_id.in_(product_ids))
+        .group_by(Review.product_id)
+    ).all()
+    rating_by_product = {
+        product_id: (round(float(avg_rating), 1) if avg_rating is not None else None, int(review_count or 0))
+        for product_id, avg_rating, review_count in rating_rows
     }
+
+    sold_rows = db.execute(
+        select(OrderItem.product_id, func.coalesce(func.sum(OrderItem.quantity), 0))
+        .where(OrderItem.product_id.in_(product_ids))
+        .group_by(OrderItem.product_id)
+    ).all()
+    sold_by_product = {product_id: int(sold_count or 0) for product_id, sold_count in sold_rows}
+
+    items = []
+    for product in products:
+        shop = shops.get(product.shop_id)
+        category = categories.get(product.category_id) if product.category_id else None
+        avg_rating, review_count = rating_by_product.get(product.id, (None, 0))
+        items.append({
+            "id": product.id,
+            "name": product.name,
+            "price": float(product.price),
+            "description": product.description,
+            "stock": product.stock,
+            "primary_image": image_by_product.get(product.id),
+            "shop_id": product.shop_id,
+            "shop_name": shop.name if shop else None,
+            "category_id": product.category_id,
+            "category": {"id": category.id, "name": category.name} if category else None,
+            "avg_rating": avg_rating,
+            "review_count": review_count,
+            "sold_count": sold_by_product.get(product.id, 0),
+        })
+    return items
 
 
 def _serialize_shop_for_search(db: Session, shop) -> dict:
@@ -211,8 +275,8 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
     items = db.scalars(stmt.offset(offset).limit(safe_page_size)).all()
     
     return {
-        "items": [_serialize_product_for_buyer(db, p) for p in items], 
-        "meta": _meta(safe_page, safe_page_size, total)
+        "items": _serialize_products_for_buyer(db, items),
+        "meta": _meta(safe_page, safe_page_size, total),
     }
 
 
