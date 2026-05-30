@@ -199,8 +199,18 @@ jobs:
         run: |
           pip install pytest pytest-asyncio httpx
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run Migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:password@localhost:5433/ecommerce
+        run: alembic upgrade head
       - name: Run Pytest
         working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:password@localhost:5433/ecommerce
+          REDIS_URL: redis://localhost:6379/0
+          PYTHONPATH: .
+        run: pytest -v
         env:
           DATABASE_URL: postgresql://postgres:password@localhost:5433/ecommerce
           REDIS_URL: redis://localhost:6379/0
@@ -230,4 +240,4 @@ jobs:
         
       - name: Run Ruff Format Check
         working-directory: backend
-        run: ruff format --check . --exit-zero --exit-zero
+        run: ruff format --check .

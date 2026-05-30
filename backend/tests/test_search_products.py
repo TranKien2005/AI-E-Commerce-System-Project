@@ -1,6 +1,6 @@
 """Search, product detail, categories, public shop endpoint tests."""
+
 import pytest
-from fastapi.testclient import TestClient
 
 
 class TestCategories:
@@ -45,7 +45,9 @@ class TestProductSearch:
             assert i["shop_id"] == items[0]["shop_id"]
 
     def test_price_range_filter(self, client):
-        r = client.get("/api/v1/products", params={"min_price": 1000000, "max_price": 99999999})
+        r = client.get(
+            "/api/v1/products", params={"min_price": 1000000, "max_price": 99999999}
+        )
         assert r.status_code == 200
         for i in r.json()["data"]["items"]:
             assert 1000000 <= i["price"] <= 99999999
@@ -94,7 +96,16 @@ class TestProductSearch:
     def test_product_list_has_image_shop_category(self, client):
         items = client.get("/api/v1/products").json()["data"]["items"]
         if items:
-            for k in ("primary_image", "shop_name", "shop_id", "category_id", "category", "avg_rating", "review_count", "sold_count"):
+            for k in (
+                "primary_image",
+                "shop_name",
+                "shop_id",
+                "category_id",
+                "category",
+                "avg_rating",
+                "review_count",
+                "sold_count",
+            ):
                 assert k in items[0]
             if items[0]["category"]:
                 assert "id" in items[0]["category"] and "name" in items[0]["category"]
@@ -107,7 +118,10 @@ class TestProductSearch:
 
 class TestIntentSearch:
     def test_intent_search(self, client):
-        r = client.post("/api/v1/products/intent-search", json={"query": "laptop", "page": 1, "page_size": 10})
+        r = client.post(
+            "/api/v1/products/intent-search",
+            json={"query": "laptop", "page": 1, "page_size": 10},
+        )
         assert r.status_code == 200
         assert "items" in r.json()["data"]
 
@@ -134,7 +148,14 @@ class TestProductDetail:
         r = client.get(f"/api/v1/products/{self._get_pid(client)}")
         assert r.status_code == 200
         d = r.json()["data"]
-        for k in ("images", "shop", "category", "attributes", "avg_rating", "review_count"):
+        for k in (
+            "images",
+            "shop",
+            "category",
+            "attributes",
+            "avg_rating",
+            "review_count",
+        ):
             assert k in d
 
     def test_shop_in_detail(self, client):

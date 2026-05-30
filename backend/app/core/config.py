@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 
-    DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5433/ecommerce"
+    DATABASE_URL: str = (
+        "postgresql+psycopg2://postgres:postgres@localhost:5433/ecommerce"
+    )
     REDIS_URL: str = "redis://localhost:6379/0"
 
     SECRET_KEY: str = "change-me-in-production"

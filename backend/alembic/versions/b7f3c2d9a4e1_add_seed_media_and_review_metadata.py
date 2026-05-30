@@ -5,6 +5,7 @@ Revises: 4e4d6d7c9d21
 Create Date: 2026-05-12 00:00:00.000000
 
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -16,8 +17,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("product_images", sa.Column("variant", sa.String(length=50), nullable=False, server_default=""))
-    op.add_column("product_images", sa.Column("source_size", sa.String(length=20), nullable=False, server_default=""))
+    op.add_column(
+        "product_images",
+        sa.Column("variant", sa.String(length=50), nullable=False, server_default=""),
+    )
+    op.add_column(
+        "product_images",
+        sa.Column(
+            "source_size", sa.String(length=20), nullable=False, server_default=""
+        ),
+    )
 
     op.create_table(
         "product_videos",
@@ -25,17 +34,45 @@ def upgrade() -> None:
         sa.Column("product_id", sa.Integer(), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False, server_default=""),
         sa.Column("url", sa.String(length=500), nullable=False),
-        sa.Column("source_user_id", sa.String(length=255), nullable=False, server_default=""),
+        sa.Column(
+            "source_user_id", sa.String(length=255), nullable=False, server_default=""
+        ),
         sa.ForeignKeyConstraint(["product_id"], ["products.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
 
-    op.add_column("reviews", sa.Column("title", sa.String(length=255), nullable=False, server_default=""))
-    op.add_column("reviews", sa.Column("verified_purchase", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("reviews", sa.Column("helpful_votes", sa.Integer(), nullable=False, server_default="0"))
-    op.add_column("reviews", sa.Column("source_user_id", sa.String(length=255), nullable=False, server_default=""))
-    op.add_column("reviews", sa.Column("source_review_id", sa.String(length=64), nullable=False, server_default=""))
-    op.create_index(op.f("ix_reviews_source_review_id"), "reviews", ["source_review_id"], unique=False)
+    op.add_column(
+        "reviews",
+        sa.Column("title", sa.String(length=255), nullable=False, server_default=""),
+    )
+    op.add_column(
+        "reviews",
+        sa.Column(
+            "verified_purchase", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
+    )
+    op.add_column(
+        "reviews",
+        sa.Column("helpful_votes", sa.Integer(), nullable=False, server_default="0"),
+    )
+    op.add_column(
+        "reviews",
+        sa.Column(
+            "source_user_id", sa.String(length=255), nullable=False, server_default=""
+        ),
+    )
+    op.add_column(
+        "reviews",
+        sa.Column(
+            "source_review_id", sa.String(length=64), nullable=False, server_default=""
+        ),
+    )
+    op.create_index(
+        op.f("ix_reviews_source_review_id"),
+        "reviews",
+        ["source_review_id"],
+        unique=False,
+    )
 
     op.alter_column("product_images", "variant", server_default=None)
     op.alter_column("product_images", "source_size", server_default=None)

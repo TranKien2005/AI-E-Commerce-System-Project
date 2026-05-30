@@ -12,7 +12,9 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=1800,
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True, class_=Session)
+SessionLocal = sessionmaker(
+    autocommit=False, autoflush=False, bind=engine, future=True, class_=Session
+)
 
 
 def get_db():

@@ -56,6 +56,8 @@ def startup_event():
 
     threading.Thread(target=run_indexing, daemon=True).start()
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,4 +1,5 @@
 """Email service — sends via SMTP (MailHog) or Resend API."""
+
 import logging
 import smtplib
 import requests
@@ -54,14 +55,16 @@ def send_email_resend(to: str, subject: str, body: str) -> bool:
             },
             timeout=10,
         )
-        
+
         if response.status_code in [200, 201]:
             logger.info(f"Resend API Email sent to {to}: {subject}")
             return True
         else:
-            logger.warning(f"Resend API Error: {response.status_code} - {response.text}")
+            logger.warning(
+                f"Resend API Error: {response.status_code} - {response.text}"
+            )
             return False
-            
+
     except pybreaker.CircuitBreakerError as e:
         logger.warning(f"Resend API circuit breaker is open for {to}: {e}")
         return False

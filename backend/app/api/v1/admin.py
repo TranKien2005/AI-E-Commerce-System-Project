@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.deps import require_roles
-from app.core.responses import ok
 from app.db.session import get_db
 from app.models.entities import User
 from app.services import admin_service
@@ -36,22 +35,40 @@ def list_users(
 
 
 @router.patch("/users/{id}")
-def patch_user(id: int, payload: PatchUserIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
-    return admin_service.patch_user(db, current_user.id, id, payload.status, payload.role)
+def patch_user(
+    id: int,
+    payload: PatchUserIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
+    return admin_service.patch_user(
+        db, current_user.id, id, payload.status, payload.role
+    )
 
 
 @router.get("/seller-requests")
-def list_seller_requests(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def list_seller_requests(
+    db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+):
     return admin_service.list_seller_requests(db)
 
 
 @router.patch("/seller-requests/{id}")
-def patch_seller_request(id: int, payload: PatchSellerRequestIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
-    return admin_service.patch_seller_request(db, current_user.id, id, payload.action, payload.reason)
+def patch_seller_request(
+    id: int,
+    payload: PatchSellerRequestIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
+    return admin_service.patch_seller_request(
+        db, current_user.id, id, payload.action, payload.reason
+    )
 
 
 @router.get("/reports")
-def list_reports(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def list_reports(
+    db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+):
     return admin_service.list_reports(db)
 
 
@@ -60,20 +77,31 @@ class PatchReportIn(BaseModel):
 
 
 @router.patch("/reports/{id}")
-def patch_report(id: int, payload: PatchReportIn, db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def patch_report(
+    id: int,
+    payload: PatchReportIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
     return admin_service.patch_report(db, current_user.id, id, payload.status)
 
 
 @router.get("/audit-logs")
-def audit_logs(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def audit_logs(
+    db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+):
     return admin_service.audit_logs(db)
 
 
 @router.get("/metrics")
-def metrics(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def metrics(
+    db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+):
     return admin_service.metrics(db)
 
 
 @router.get("/logs")
-def logs(db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))):
+def logs(
+    db: Session = Depends(get_db), current_user: User = Depends(require_roles("admin"))
+):
     return admin_service.logs(db)

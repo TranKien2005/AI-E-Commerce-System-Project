@@ -53,7 +53,9 @@ def _catalog_context(db: Session) -> str:
     return "\n".join(lines)
 
 
-def _conversation_context(db: Session, conversation: Conversation, limit: int = 10) -> str:
+def _conversation_context(
+    db: Session, conversation: Conversation, limit: int = 10
+) -> str:
     messages = db.scalars(
         select(Message)
         .where(Message.conversation_id == conversation.id)
@@ -80,7 +82,9 @@ def _extract_text(response_json: dict) -> str:
     for candidate in response_json.get("candidates", []):
         content = candidate.get("content") or {}
         parts = content.get("parts") or []
-        text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+        text = "".join(
+            part.get("text", "") for part in parts if isinstance(part, dict)
+        ).strip()
         if text:
             return text
     return ""
@@ -135,7 +139,9 @@ def _looks_prompt_like(text: str) -> bool:
     )
 
 
-def _products_for_reply(db: Session, conversation: Conversation) -> list[tuple[Product, Shop]]:
+def _products_for_reply(
+    db: Session, conversation: Conversation
+) -> list[tuple[Product, Shop]]:
     stmt = (
         select(Product, Shop)
         .join(Shop, Product.shop_id == Shop.id)
@@ -147,15 +153,23 @@ def _products_for_reply(db: Session, conversation: Conversation) -> list[tuple[P
     return list(db.execute(stmt).all())
 
 
-def _catalog_fallback_reply(db: Session, conversation: Conversation, buyer_message: str) -> str:
+def _catalog_fallback_reply(
+    db: Session, conversation: Conversation, buyer_message: str
+) -> str:
     rows = _products_for_reply(db, conversation)
     if not rows:
         return "I do not see any live catalog items for this shop right now, but I can still help check product details once items are available."
 
     text = buyer_message.lower()
-    budget_match = re.search(r"(?:under|below|less than|<=?)\s*\$?\s*(\d+(?:\.\d+)?)", text)
+    budget_match = re.search(
+        r"(?:under|below|less than|<=?)\s*\$?\s*(\d+(?:\.\d+)?)", text
+    )
     budget = float(budget_match.group(1)) if budget_match else None
-    filtered = [(product, shop) for product, shop in rows if budget is None or float(product.price) <= budget]
+    filtered = [
+        (product, shop)
+        for product, shop in rows
+        if budget is None or float(product.price) <= budget
+    ]
     if not filtered:
         cheapest, shop = rows[0]
         budget_text = f" under ${budget:.2f}" if budget is not None else ""
@@ -165,7 +179,10 @@ def _catalog_fallback_reply(db: Session, conversation: Conversation, buyer_messa
     alternatives = filtered[1:3]
     reply = f"I recommend {picked.name} from {shop.name}. It is ${float(picked.price):.2f} and currently has {picked.stock} in stock."
     if alternatives:
-        names = ", ".join(f"{product.name} (${float(product.price):.2f})" for product, _ in alternatives)
+        names = ", ".join(
+            f"{product.name} (${float(product.price):.2f})"
+            for product, _ in alternatives
+        )
         reply += f" Other affordable options are {names}."
     return reply
 
@@ -222,7 +239,9 @@ def _split_reply_for_stream(reply: str) -> Iterator[str]:
         yield chunk
 
 
-def generate_chatbot_reply(db: Session, conversation: Conversation, buyer_message: str) -> str | None:
+def generate_chatbot_reply(
+    db: Session, conversation: Conversation, buyer_message: str
+) -> str | None:
     if not settings.CHATBOT_ENABLED or not settings.GEMINI_API_KEY:
         return None
 
@@ -238,7 +257,9 @@ def generate_chatbot_reply(db: Session, conversation: Conversation, buyer_messag
     return _catalog_fallback_reply(db, conversation, buyer_message)
 
 
-def stream_chatbot_reply(db: Session, conversation: Conversation, buyer_message: str) -> Iterator[str]:
+def stream_chatbot_reply(
+    db: Session, conversation: Conversation, buyer_message: str
+) -> Iterator[str]:
     if not settings.CHATBOT_ENABLED or not settings.GEMINI_API_KEY:
         return
 
@@ -257,11 +278,15 @@ def stream_chatbot_reply(db: Session, conversation: Conversation, buyer_message:
     if streamed_chunks:
         return
 
-    for chunk in _split_reply_for_stream(_catalog_fallback_reply(db, conversation, buyer_message)):
+    for chunk in _split_reply_for_stream(
+        _catalog_fallback_reply(db, conversation, buyer_message)
+    ):
         yield chunk
 
 
-def create_chatbot_message(db: Session, conversation: Conversation, buyer_message: str) -> Message | None:
+def create_chatbot_message(
+    db: Session, conversation: Conversation, buyer_message: str
+) -> Message | None:
     reply = generate_chatbot_reply(db, conversation, buyer_message)
     if not reply:
         return None

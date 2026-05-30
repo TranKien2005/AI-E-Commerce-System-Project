@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.responses import fail, ok
-from app.core.security import create_token, decode_token, get_password_hash, verify_password
+from app.core.security import (
+    create_token,
+    decode_token,
+    get_password_hash,
+    verify_password,
+)
 from app.models.entities import User
 from app.services.email_service import send_otp_email
 
@@ -54,19 +59,31 @@ def _is_refresh_token_revoked(refresh_token: str) -> bool:
 
 
 def _revoke_refresh_token(refresh_token: str) -> None:
-    _redis_client.setex(_revoked_refresh_key(refresh_token), REFRESH_TOKEN_EXPIRE_SECONDS, "1")
+    _redis_client.setex(
+        _revoked_refresh_key(refresh_token), REFRESH_TOKEN_EXPIRE_SECONDS, "1"
+    )
 
 
 def valid_password(password: str) -> bool:
     if len(password) < 8:
         return False
-    return any(c.isupper() for c in password) and any(c.islower() for c in password) and any(c.isdigit() for c in password) and any(not c.isalnum() for c in password)
+    return (
+        any(c.isupper() for c in password)
+        and any(c.islower() for c in password)
+        and any(c.isdigit() for c in password)
+        and any(not c.isalnum() for c in password)
+    )
 
 
 def ensure_password(password: str):
     """Enforce the password policy used by registration and password reset."""
     if not valid_password(password):
-        fail(422, "VALIDATION_ERROR", "Mật khẩu không đáp ứng chính sách bảo mật", ["Tối thiểu 8 ký tự gồm chữ hoa, chữ thường, số, ký tự đặc biệt"])
+        fail(
+            422,
+            "VALIDATION_ERROR",
+            "Mật khẩu không đáp ứng chính sách bảo mật",
+            ["Tối thiểu 8 ký tự gồm chữ hoa, chữ thường, số, ký tự đặc biệt"],
+        )
 
 
 def register(db: Session, email: str, password: str, full_name: str):
@@ -76,7 +93,10 @@ def register(db: Session, email: str, password: str, full_name: str):
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
         # Unverified accounts can request a fresh OTP instead of failing registration.
-        if existing.email_verified_at is None or existing.status == "pending_verification":
+        if (
+            existing.email_verified_at is None
+            or existing.status == "pending_verification"
+        ):
             return resend_verification_otp(db, email)
         fail(409, "CONFLICT", "Email đã tồn tại")
     user = User(
@@ -136,7 +156,11 @@ def resend_verification_otp(db: Session, email: str):
 def login(db: Session, email: str, password: str):
     """Authenticate an active, verified user and issue access/refresh tokens."""
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
-    if not user or user.deleted_at is not None or not verify_password(password, user.password):
+    if (
+        not user
+        or user.deleted_at is not None
+        or not verify_password(password, user.password)
+    ):
         fail(401, "UNAUTHORIZED", "Sai thông tin đăng nhập")
     if user.email_verified_at is None:
         fail(403, "FORBIDDEN", "Tài khoản chưa xác thực email")
@@ -144,7 +168,13 @@ def login(db: Session, email: str, password: str):
         fail(403, "FORBIDDEN", "Tài khoản không ở trạng thái active")
     access_token = create_token(str(user.id), 60, "access")
     refresh_token = create_token(str(user.id), 60 * 24 * 14, "refresh")
-    return ok({"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"})
+    return ok(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+    )
 
 
 def refresh(refresh_token: str):

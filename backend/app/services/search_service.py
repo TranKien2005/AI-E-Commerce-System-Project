@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_URL_RE = re.compile(r"https?://\S+")
 
+
 def sanitize_image_url(value: str | None) -> str | None:
     """Extract the first HTTP(S) URL from imported image fields."""
     if not value:
@@ -17,18 +18,29 @@ def sanitize_image_url(value: str | None) -> str | None:
     match = _IMAGE_URL_RE.search(value.strip())
     return match.group(0) if match else None
 
+
 def _product_metrics(db: Session, product_id: int) -> tuple[float | None, int, int]:
     """Calculate rating, review count, and sold count for listing cards."""
     rating_row = db.execute(
-        select(func.avg(Review.rating), func.count(Review.id)).where(Review.product_id == product_id)
+        select(func.avg(Review.rating), func.count(Review.id)).where(
+            Review.product_id == product_id
+        )
     ).one()
-    sold_count = db.scalar(select(func.coalesce(func.sum(OrderItem.quantity), 0)).where(OrderItem.product_id == product_id)) or 0
+    sold_count = (
+        db.scalar(
+            select(func.coalesce(func.sum(OrderItem.quantity), 0)).where(
+                OrderItem.product_id == product_id
+            )
+        )
+        or 0
+    )
     avg_rating = round(float(rating_row[0]), 1) if rating_row[0] is not None else None
     return avg_rating, int(rating_row[1] or 0), int(sold_count)
 
 
 # Trạng thái toàn cục của tiến trình đánh chỉ mục Vector AI
 INDEX_STATUS = "idle"  # Các giá trị hợp lệ: idle, indexing, ready, error
+
 
 def _meta(page: int, page_size: int, total: int) -> dict:
     """Cấu trúc hóa metadata phân trang toàn hệ thống.
@@ -42,7 +54,12 @@ def _meta(page: int, page_size: int, total: int) -> dict:
         Một dict chứa thông tin phân trang tiêu chuẩn.
     """
     total_pages = (total + page_size - 1) // page_size if page_size else 1
-    return {"page": page, "page_size": page_size, "total": total, "total_pages": total_pages}
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+    }
 
 
 def _serialize_product_for_buyer(db: Session, product) -> dict:
@@ -64,22 +81,40 @@ def _serialize_products_for_buyer(db: Session, products: list[Product]) -> list[
 
     product_ids = [product.id for product in products]
     shop_ids = {product.shop_id for product in products if product.shop_id is not None}
-    category_ids = {product.category_id for product in products if product.category_id is not None}
+    category_ids = {
+        product.category_id for product in products if product.category_id is not None
+    }
 
-    shops = {
-        shop.id: shop
-        for shop in db.scalars(select(Shop).where(Shop.id.in_(list(shop_ids)))).all()
-    } if shop_ids else {}
-    categories = {
-        category.id: category
-        for category in db.scalars(select(Category).where(Category.id.in_(list(category_ids)))).all()
-    } if category_ids else {}
+    shops = (
+        {
+            shop.id: shop
+            for shop in db.scalars(
+                select(Shop).where(Shop.id.in_(list(shop_ids)))
+            ).all()
+        }
+        if shop_ids
+        else {}
+    )
+    categories = (
+        {
+            category.id: category
+            for category in db.scalars(
+                select(Category).where(Category.id.in_(list(category_ids)))
+            ).all()
+        }
+        if category_ids
+        else {}
+    )
 
     image_by_product: dict[int, str] = {}
     image_rows = db.execute(
         select(ProductImage.product_id, ProductImage.url)
         .where(ProductImage.product_id.in_(product_ids))
-        .order_by(ProductImage.product_id.asc(), ProductImage.is_primary.desc(), ProductImage.id.asc())
+        .order_by(
+            ProductImage.product_id.asc(),
+            ProductImage.is_primary.desc(),
+            ProductImage.id.asc(),
+        )
     ).all()
     for product_id, url in image_rows:
         if product_id in image_by_product:
@@ -94,7 +129,10 @@ def _serialize_products_for_buyer(db: Session, products: list[Product]) -> list[
         .group_by(Review.product_id)
     ).all()
     rating_by_product = {
-        product_id: (round(float(avg_rating), 1) if avg_rating is not None else None, int(review_count or 0))
+        product_id: (
+            round(float(avg_rating), 1) if avg_rating is not None else None,
+            int(review_count or 0),
+        )
         for product_id, avg_rating, review_count in rating_rows
     }
 
@@ -103,28 +141,34 @@ def _serialize_products_for_buyer(db: Session, products: list[Product]) -> list[
         .where(OrderItem.product_id.in_(product_ids))
         .group_by(OrderItem.product_id)
     ).all()
-    sold_by_product = {product_id: int(sold_count or 0) for product_id, sold_count in sold_rows}
+    sold_by_product = {
+        product_id: int(sold_count or 0) for product_id, sold_count in sold_rows
+    }
 
     items = []
     for product in products:
         shop = shops.get(product.shop_id)
         category = categories.get(product.category_id) if product.category_id else None
         avg_rating, review_count = rating_by_product.get(product.id, (None, 0))
-        items.append({
-            "id": product.id,
-            "name": product.name,
-            "price": float(product.price),
-            "description": product.description,
-            "stock": product.stock,
-            "primary_image": image_by_product.get(product.id),
-            "shop_id": product.shop_id,
-            "shop_name": shop.name if shop else None,
-            "category_id": product.category_id,
-            "category": {"id": category.id, "name": category.name} if category else None,
-            "avg_rating": avg_rating,
-            "review_count": review_count,
-            "sold_count": sold_by_product.get(product.id, 0),
-        })
+        items.append(
+            {
+                "id": product.id,
+                "name": product.name,
+                "price": float(product.price),
+                "description": product.description,
+                "stock": product.stock,
+                "primary_image": image_by_product.get(product.id),
+                "shop_id": product.shop_id,
+                "shop_name": shop.name if shop else None,
+                "category_id": product.category_id,
+                "category": {"id": category.id, "name": category.name}
+                if category
+                else None,
+                "avg_rating": avg_rating,
+                "review_count": review_count,
+                "sold_count": sold_by_product.get(product.id, 0),
+            }
+        )
     return items
 
 
@@ -138,7 +182,14 @@ def _serialize_shop_for_search(db: Session, shop) -> dict:
     Returns:
         Một dict chứa thông tin cửa hàng đã làm sạch.
     """
-    return {"id": shop.id, "name": shop.name, "status": shop.status, "description": shop.description}
+    return {
+        "id": shop.id,
+        "name": shop.name,
+        "status": shop.status,
+        "description": shop.description,
+    }
+
+
 # ==========================================
 # CENTRALIZED SUBQUERIES FOR SCOPE RESOLUTION
 # ==========================================
@@ -148,7 +199,9 @@ def _serialize_shop_for_search(db: Session, shop) -> dict:
 rating_subquery = (
     select(
         Product.id.label("product_id"),
-        func.avg(Review.rating).label("avg_rating")  # Giả định có model Review tương ứng
+        func.avg(Review.rating).label(
+            "avg_rating"
+        ),  # Giả định có model Review tương ứng
     )
     .join(Review, Review.product_id == Product.id)
     .group_by(Product.id)
@@ -158,7 +211,7 @@ rating_subquery = (
 sold_subquery = (
     select(
         OrderItem.product_id.label("product_id"),
-        func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count")
+        func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count"),
     )
     .group_by(OrderItem.product_id)
     .subquery()
@@ -168,9 +221,16 @@ sold_subquery = (
 # INTERNAL QUERY BUILDER HELPERS (HÀM BỔ TRỢ)
 # ==========================================
 
-def _apply_product_filters(query: str, category_id: int | None, shop_id: int | None,
-                           min_price: float | None, max_price: float | None,
-                           min_rating: int | None, product_ids: list[int] | None) -> list:
+
+def _apply_product_filters(
+    query: str,
+    category_id: int | None,
+    shop_id: int | None,
+    min_price: float | None,
+    max_price: float | None,
+    min_rating: int | None,
+    product_ids: list[int] | None,
+) -> list:
     """Xây dựng danh sách các biểu thức điều kiện lọc (WHERE) cho Sản phẩm.
 
     Ưu tiên áp dụng kết quả tìm kiếm vector từ AI hơn là khớp chuỗi ký tự thông thường.
@@ -189,18 +249,23 @@ def _apply_product_filters(query: str, category_id: int | None, shop_id: int | N
     """
     # Điều kiện bắt buộc: Chỉ lấy sản phẩm chưa bị xóa (Soft-delete)
     filters = [Product.deleted_at.is_(None)]
-    
+
     if product_ids is not None:
         filters.append(Product.id.in_(product_ids))
     elif query:
         filters.append(Product.name.ilike(f"%{query}%"))
-        
-    if category_id is not None: filters.append(Product.category_id == category_id)
-    if shop_id is not None:     filters.append(Product.shop_id == shop_id)
-    if min_price is not None:   filters.append(Product.price >= min_price)
-    if max_price is not None:   filters.append(Product.price <= max_price)
-    if min_rating is not None:  filters.append(rating_subquery.c.avg_rating >= min_rating)
-    
+
+    if category_id is not None:
+        filters.append(Product.category_id == category_id)
+    if shop_id is not None:
+        filters.append(Product.shop_id == shop_id)
+    if min_price is not None:
+        filters.append(Product.price >= min_price)
+    if max_price is not None:
+        filters.append(Product.price <= max_price)
+    if min_rating is not None:
+        filters.append(rating_subquery.c.avg_rating >= min_rating)
+
     return filters
 
 
@@ -219,27 +284,41 @@ def _apply_product_sorting(stmt, sort: str | None, product_ids: list[int] | None
     sort_mapping = {
         "price_asc": (Product.price.asc(), Product.id.desc()),
         "price_desc": (Product.price.desc(), Product.id.desc()),
-        "top_sales": (func.coalesce(sold_subquery.c.sold_count, 0).desc(), Product.id.desc()),
-        "popular": (func.coalesce(sold_subquery.c.sold_count, 0).desc(), Product.id.desc()),
+        "top_sales": (
+            func.coalesce(sold_subquery.c.sold_count, 0).desc(),
+            Product.id.desc(),
+        ),
+        "popular": (
+            func.coalesce(sold_subquery.c.sold_count, 0).desc(),
+            Product.id.desc(),
+        ),
         "newest": (Product.id.desc(),),
     }
-    
+
     if sort in sort_mapping:
         return stmt.order_by(*sort_mapping[sort])
-        
+
     # Giữ nguyên thứ tự ưu tiên ngữ nghĩa (Cosine Similarity) do Vector Store trả về
     if product_ids:
         whens = {pid: i for i, pid in enumerate(product_ids)}
         return stmt.order_by(case(whens, value=Product.id))
-        
+
     return stmt.order_by(Product.id.desc())
 
 
-def _build_query(db: Session, query: str, page: int, page_size: int,
-                 category_id: int | None = None, shop_id: int | None = None,
-                 min_price: float | None = None, max_price: float | None = None,
-                 min_rating: int | None = None, sort: str | None = None,
-                 product_ids: list[int] | None = None):
+def _build_query(
+    db: Session,
+    query: str,
+    page: int,
+    page_size: int,
+    category_id: int | None = None,
+    shop_id: int | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_rating: int | None = None,
+    sort: str | None = None,
+    product_ids: list[int] | None = None,
+):
     """Khởi tạo cấu trúc truy vấn SQL, tính toán phân trang và tuần tự hóa dữ liệu.
 
     Args:
@@ -261,19 +340,30 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
     # Giới hạn biên an toàn cho phân trang nhằm ngăn lỗi giá trị âm hoặc quá tải DB
     safe_page = max(page, 1)
     safe_page_size = max(min(page_size, 100), 1)
-    
-    filters = _apply_product_filters(query, category_id, shop_id, min_price, max_price, min_rating, product_ids)
+
+    filters = _apply_product_filters(
+        query, category_id, shop_id, min_price, max_price, min_rating, product_ids
+    )
 
     # Tách biệt câu lệnh lấy dữ liệu và câu lệnh đếm tổng để tối ưu tốc độ hàm COUNT
-    stmt = select(Product).outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id).outerjoin(sold_subquery, sold_subquery.c.product_id == Product.id).where(and_(*filters))
-    total_stmt = select(func.count(Product.id)).outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id).where(and_(*filters))
+    stmt = (
+        select(Product)
+        .outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id)
+        .outerjoin(sold_subquery, sold_subquery.c.product_id == Product.id)
+        .where(and_(*filters))
+    )
+    total_stmt = (
+        select(func.count(Product.id))
+        .outerjoin(rating_subquery, rating_subquery.c.product_id == Product.id)
+        .where(and_(*filters))
+    )
 
     stmt = _apply_product_sorting(stmt, sort, product_ids)
 
     total = int(db.scalar(total_stmt) or 0)
     offset = (safe_page - 1) * safe_page_size
     items = db.scalars(stmt.offset(offset).limit(safe_page_size)).all()
-    
+
     return {
         "items": _serialize_products_for_buyer(db, items),
         "meta": _meta(safe_page, safe_page_size, total),
@@ -283,6 +373,7 @@ def _build_query(db: Session, query: str, page: int, page_size: int,
 # ==========================================
 # PUBLIC APIS (CÁC ĐẦU HÀM XUẤT RA NGOÀI)
 # ==========================================
+
 
 def search_shops(db: Session, query: str, page: int, page_size: int):
     """Tìm kiếm các cửa hàng đang hoạt động dựa trên trọng số văn bản và lượng bán.
@@ -298,60 +389,81 @@ def search_shops(db: Session, query: str, page: int, page_size: int):
     """
     safe_page = max(page, 1)
     safe_page_size = max(min(page_size, 24), 1)
-    
+
     # Subquery: Thống kê số lượng sản phẩm hiện có của từng cửa hàng
     product_count_subquery = (
-        select(Product.shop_id.label("shop_id"), func.count(Product.id).label("product_count"))
+        select(
+            Product.shop_id.label("shop_id"),
+            func.count(Product.id).label("product_count"),
+        )
         .where(Product.deleted_at.is_(None))
-        .group_by(Product.shop_id).subquery()
+        .group_by(Product.shop_id)
+        .subquery()
     )
-    
+
     # Subquery: Tổng hợp tích lũy số lượng mặt hàng đã bán ra của từng cửa hàng
     sold_subquery_shop = (
-        select(Product.shop_id.label("shop_id"), func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count"))
+        select(
+            Product.shop_id.label("shop_id"),
+            func.coalesce(func.sum(OrderItem.quantity), 0).label("sold_count"),
+        )
         .join(OrderItem, OrderItem.product_id == Product.id)
-        .group_by(Product.shop_id).subquery()
+        .group_by(Product.shop_id)
+        .subquery()
     )
-    
+
     filters = [Shop.status == "active"]
     relevance = 0
-    
+
     # Tính điểm liên quan: Khớp tiền tố (3) > Khớp chuỗi con (2) > Khớp mô tả (1)
     if query:
-        filters.append(or_(Shop.name.ilike(f"%{query}%"), Shop.description.ilike(f"%{query}%")))
+        filters.append(
+            or_(Shop.name.ilike(f"%{query}%"), Shop.description.ilike(f"%{query}%"))
+        )
         relevance = case(
             (Shop.name.ilike(f"{query}%"), 3),
             (Shop.name.ilike(f"%{query}%"), 2),
             (Shop.description.ilike(f"%{query}%"), 1),
             else_=0,
         )
-        
+
     total = int(db.scalar(select(func.count(Shop.id)).where(and_(*filters))) or 0)
-    
+
     stmt = (
         select(Shop)
         .outerjoin(product_count_subquery, product_count_subquery.c.shop_id == Shop.id)
         .outerjoin(sold_subquery_shop, sold_subquery_shop.c.shop_id == Shop.id)
         .where(and_(*filters))
         .order_by(
-            relevance.desc() if query else Shop.id.desc(), 
-            func.coalesce(sold_subquery_shop.c.sold_count, 0).desc(), 
-            func.coalesce(product_count_subquery.c.product_count, 0).desc(), 
-            Shop.id.desc()
+            relevance.desc() if query else Shop.id.desc(),
+            func.coalesce(sold_subquery_shop.c.sold_count, 0).desc(),
+            func.coalesce(product_count_subquery.c.product_count, 0).desc(),
+            Shop.id.desc(),
         )
         .offset((safe_page - 1) * safe_page_size)
         .limit(safe_page_size)
     )
-    
+
     items = db.scalars(stmt).all()
-    return {"items": [_serialize_shop_for_search(db, shop) for shop in items], "meta": _meta(safe_page, safe_page_size, total)}
+    return {
+        "items": [_serialize_shop_for_search(db, shop) for shop in items],
+        "meta": _meta(safe_page, safe_page_size, total),
+    }
 
 
-def search_products(db: Session, query: str, page: int, page_size: int,
-                    category_id: int | None = None, shop_id: int | None = None,
-                    min_price: float | None = None, max_price: float | None = None,
-                    min_rating: int | None = None, sort: str | None = None,
-                    search_type: str = "normal"):
+def search_products(
+    db: Session,
+    query: str,
+    page: int,
+    page_size: int,
+    category_id: int | None = None,
+    shop_id: int | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_rating: int | None = None,
+    sort: str | None = None,
+    search_type: str = "normal",
+):
     """Điều phối tìm kiếm sản phẩm thông qua bộ lọc SQL truyền thống hoặc Vector Search AI.
 
     Args:
@@ -376,50 +488,74 @@ def search_products(db: Session, query: str, page: int, page_size: int,
 
     if search_type == "ai" and query and query.strip():
         from app.services.ai_service import parse_intent, vector_store
-        
+
         # Cung cấp danh sách ngữ cảnh Category giúp mô hình AI phân tách ý định chính xác
         categories = db.scalars(select(Category.name)).all()
         ai_res = parse_intent(query, categories)
         ai_parsed = ai_res
         is_fallback = ai_res.get("is_fallback", False)
-        
+
         # Ghi đè các tiêu chí tìm kiếm bằng các thực thể (entities) bóc tách được từ AI
         query = ai_res.get("search_query") or query
-        if ai_res.get("min_price") is not None:  min_price = ai_res.get("min_price")
-        if ai_res.get("max_price") is not None:  max_price = ai_res.get("max_price")
-        if ai_res.get("sort") is not None:       sort = ai_res.get("sort")
-            
+        if ai_res.get("min_price") is not None:
+            min_price = ai_res.get("min_price")
+        if ai_res.get("max_price") is not None:
+            max_price = ai_res.get("max_price")
+        if ai_res.get("sort") is not None:
+            sort = ai_res.get("sort")
+
         # Ánh xạ ngược chuỗi tên danh mục mà AI phân tích về ID khóa chính trong DB
         ai_cat_name = ai_res.get("category")
         if ai_cat_name:
             db_cat = db.scalar(
                 select(Category)
                 .join(Product, Product.category_id == Category.id)
-                .where(Category.name.ilike(f"%{ai_cat_name}%"), Product.deleted_at.is_(None))
+                .where(
+                    Category.name.ilike(f"%{ai_cat_name}%"),
+                    Product.deleted_at.is_(None),
+                )
                 .limit(1)
             )
             if db_cat:
                 category_id = db_cat.id
-                
+
         # Thực hiện truy vấn không gian Vector tìm Top-K sản phẩm tương đồng về mặt ngữ nghĩa
         product_ids = vector_store.query_similarity(query, k=50)
 
-    res = _build_query(db, query, page, page_size,
-                       category_id=category_id, shop_id=shop_id,
-                       min_price=min_price, max_price=max_price, min_rating=min_rating, 
-                       sort=sort, product_ids=product_ids)
-    
+    res = _build_query(
+        db,
+        query,
+        page,
+        page_size,
+        category_id=category_id,
+        shop_id=shop_id,
+        min_price=min_price,
+        max_price=max_price,
+        min_rating=min_rating,
+        sort=sort,
+        product_ids=product_ids,
+    )
+
     res["is_fallback"] = is_fallback
     res["ai_parsed"] = ai_parsed
     return res
 
 
-def search_marketplace(db: Session, query: str, page: int, page_size: int,
-                       shop_page: int = 1, shop_page_size: int = 4,
-                       category_id: int | None = None, shop_id: int | None = None,
-                       min_price: float | None = None, max_price: float | None = None,
-                       min_rating: int | None = None, sort: str | None = None,
-                       search_type: str = "normal"):
+def search_marketplace(
+    db: Session,
+    query: str,
+    page: int,
+    page_size: int,
+    shop_page: int = 1,
+    shop_page_size: int = 4,
+    category_id: int | None = None,
+    shop_id: int | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_rating: int | None = None,
+    sort: str | None = None,
+    search_type: str = "normal",
+):
     """Cung cấp cổng tìm kiếm hỗn hợp trả về cả dữ liệu Sản phẩm lẫn Cửa hàng liên quan.
 
     Args:
@@ -441,17 +577,28 @@ def search_marketplace(db: Session, query: str, page: int, page_size: int,
         Một dict tổng hợp chứa hai nhánh kết quả độc lập: 'shops' và 'products'.
     """
     products = search_products(
-        db, query=query, page=page, page_size=page_size,
-        category_id=category_id, shop_id=shop_id, min_price=min_price, max_price=max_price,
-        min_rating=min_rating, sort=sort, search_type=search_type
+        db,
+        query=query,
+        page=page,
+        page_size=page_size,
+        category_id=category_id,
+        shop_id=shop_id,
+        min_price=min_price,
+        max_price=max_price,
+        min_rating=min_rating,
+        sort=sort,
+        search_type=search_type,
     )
-    
-    shops = {"items": [], "meta": _meta(max(shop_page, 1), max(min(shop_page_size, 24), 1), 0)}
-    
+
+    shops = {
+        "items": [],
+        "meta": _meta(max(shop_page, 1), max(min(shop_page_size, 24), 1), 0),
+    }
+
     # Ngăn chặn việc truy vấn tìm kiếm shop ngầm nếu client đang giới hạn trong một shop cụ thể
     if query and shop_id is None:
         shops = search_shops(db, query, shop_page, shop_page_size)
-        
+
     return {"shops": shops, "products": products}
 
 
@@ -480,14 +627,16 @@ def init_search_index(db: Session):
     try:
         logger.info("Initializing search index...")
         from app.services.ai_service import vector_store
-        
+
         # Chỉ lập chỉ mục các sản phẩm đang hiển thị (chưa soft-delete)
         products = db.scalars(select(Product).where(Product.deleted_at.is_(None))).all()
         for p in products:
             vector_store.add_product(p.id, p.name, p.description, p.category_id)
-            
+
         INDEX_STATUS = "ready"
-        logger.info(f"Search index initialized successfully with {len(products)} products.")
+        logger.info(
+            f"Search index initialized successfully with {len(products)} products."
+        )
     except Exception as e:
         INDEX_STATUS = "error"
         logger.error(f"Error initializing search index: {e}")

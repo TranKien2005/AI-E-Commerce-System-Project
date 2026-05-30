@@ -23,13 +23,15 @@ class RedisCache:
         self.client = None
         try:
             self.client = redis.from_url(
-                settings.REDIS_URL, 
-                socket_timeout=1.0, 
-                decode_responses=True
+                settings.REDIS_URL, socket_timeout=1.0, decode_responses=True
             )
-            logger.info("Connected to Redis successfully for Intent-based Search cache.")
+            logger.info(
+                "Connected to Redis successfully for Intent-based Search cache."
+            )
         except Exception as e:
-            logger.warning(f"Could not connect to Redis: {e}. AI search caching will be bypassed.")
+            logger.warning(
+                f"Could not connect to Redis: {e}. AI search caching will be bypassed."
+            )
             self.client = None
 
     async def get(self, key: str) -> dict | None:
@@ -39,7 +41,7 @@ class RedisCache:
             key: Chuỗi ký tự định danh khóa cần truy xuất.
 
         Returns:
-            Một dictionary chứa dữ liệu được giải mã nếu thành công, ngược lại 
+            Một dictionary chứa dữ liệu được giải mã nếu thành công, ngược lại
             trả về None nếu không tìm thấy khóa hoặc mất kết nối Redis.
         """
         if not self.client:
@@ -107,12 +109,12 @@ def get_mock_embedding(text: str) -> list[float]:
     if not words:
         return vector
     for word in words:
-        h = int(hashlib.md5(word.encode('utf-8')).hexdigest(), 16)
+        h = int(hashlib.md5(word.encode("utf-8")).hexdigest(), 16)
         for i in range(5):
             slot = (h + i * 17) % 768
-            vector[slot] += ((h >> i) & 0xff) / 255.0
-    
-    norm = math.sqrt(sum(x*x for x in vector))
+            vector[slot] += ((h >> i) & 0xFF) / 255.0
+
+    norm = math.sqrt(sum(x * x for x in vector))
     if norm > 0.0:
         vector = [x / norm for x in vector]
     return vector
@@ -131,9 +133,9 @@ async def get_embedding(text: str) -> list[float]:
         return [0.0] * 768
 
     embedding_model = "gemini-embedding-2-preview"
-    text_hash = hashlib.md5(text.strip().encode('utf-8')).hexdigest()
+    text_hash = hashlib.md5(text.strip().encode("utf-8")).hexdigest()
     cache_key = f"emb:{embedding_model}:{text_hash}"
-    
+
     cached = await cache.get(cache_key)
     if cached and isinstance(cached, list):
         return cached
@@ -147,7 +149,7 @@ async def get_embedding(text: str) -> list[float]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{embedding_model}:embedContent?key={settings.AI_SEARCH_API_KEY}"
         payload = {
             "model": f"models/{embedding_model}",
-            "content": {"parts": [{"text": text}]}
+            "content": {"parts": [{"text": text}]},
         }
         async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.post(url, json=payload)
@@ -157,9 +159,13 @@ async def get_embedding(text: str) -> list[float]:
                 if emb:
                     await cache.set(cache_key, emb)
                     return emb
-            logger.warning(f"Gemini embedding API returned status {resp.status_code}. Using mock embedding.")
+            logger.warning(
+                f"Gemini embedding API returned status {resp.status_code}. Using mock embedding."
+            )
     except Exception as e:
-        logger.warning(f"Error calling Gemini embedding API: {e}. Using mock embedding.")
+        logger.warning(
+            f"Error calling Gemini embedding API: {e}. Using mock embedding."
+        )
 
     emb = get_mock_embedding(text)
     await cache.set(cache_key, emb)
@@ -174,7 +180,9 @@ class MemoryVectorStore:
         self.lock = asyncio.Lock()
         self.storage = {}
 
-    async def add_product(self, product_id: int, name: str, description: str, category_id: int | None):
+    async def add_product(
+        self, product_id: int, name: str, description: str, category_id: int | None
+    ):
         """Tạo vector embedding và nạp thông tin sản phẩm vào bộ nhớ không gian.
 
         Args:
@@ -190,7 +198,7 @@ class MemoryVectorStore:
                 "name": name,
                 "description": description,
                 "category_id": category_id,
-                "embedding": emb
+                "embedding": emb,
             }
 
     async def delete_product(self, product_id: int):
@@ -239,7 +247,7 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
         Một cấu trúc dictionary chứa các tham số bộ lọc đã bóc tách được.
     """
     query_lower = query_text.lower()
-    
+
     def norm_price(match):
         millions_val = float(match.group(1).replace(",", "."))
         frac_str = match.group(2)
@@ -255,13 +263,17 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
         return f"{int(val)} đ"
 
     query_lower = re.sub(
-        r'(\d+(?:[.,]\d+)?)\s*(?:triệu|tr)\s*(\d+)?\s*(k|đ|vnd)?',
+        r"(\d+(?:[.,]\d+)?)\s*(?:triệu|tr)\s*(\d+)?\s*(k|đ|vnd)?",
         norm_price,
-        query_lower
+        query_lower,
     )
 
-    query_plain = unicodedata.normalize("NFKD", query_lower).encode("ascii", "ignore").decode("ascii")
-    
+    (
+        unicodedata.normalize("NFKD", query_lower)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+
     matched_category = None
     for cat in categories:
         if cat.lower() in query_lower:
@@ -275,7 +287,11 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
         try:
             val = float(num_str.replace(",", "."))
             unit_text = (unit or "").lower()
-            unit_text = unicodedata.normalize("NFKD", unit_text).encode("ascii", "ignore").decode("ascii")
+            unit_text = (
+                unicodedata.normalize("NFKD", unit_text)
+                .encode("ascii", "ignore")
+                .decode("ascii")
+            )
             if unit_text in ["trieu", "tr", "million", "m"]:
                 return val * 1_000_000
             elif unit_text in ["k", "nghin", "ngan"]:
@@ -285,35 +301,47 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
             return None
 
     range_match = re.search(
-        r'(?:giá\s+)?từ\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?\s*(?:đến|tới|-)\s*(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?',
-        query_lower
+        r"(?:giá\s+)?từ\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?\s*(?:đến|tới|-)\s*(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?",
+        query_lower,
     )
     if range_match:
-        val1 = parse_number(range_match.group(1), range_match.group(2) or range_match.group(4))
-        val2 = parse_number(range_match.group(3), range_match.group(4) or range_match.group(2))
-        if val1 is not None: min_price = val1
-        if val2 is not None: max_price = val2
+        val1 = parse_number(
+            range_match.group(1), range_match.group(2) or range_match.group(4)
+        )
+        val2 = parse_number(
+            range_match.group(3), range_match.group(4) or range_match.group(2)
+        )
+        if val1 is not None:
+            min_price = val1
+        if val2 is not None:
+            max_price = val2
     else:
         under_match = re.search(
-            r'(?:giá\s+)?(?:dưới|tối\s+đa|nhỏ\s+hơn|ít\s+hơn)\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?',
-            query_lower
+            r"(?:giá\s+)?(?:dưới|tối\s+đa|nhỏ\s+hơn|ít\s+hơn)\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?",
+            query_lower,
         )
         if under_match:
             val = parse_number(under_match.group(1), under_match.group(2))
-            if val is not None: max_price = val
-        
+            if val is not None:
+                max_price = val
+
         over_match = re.search(
-            r'(?:giá\s+)?(?:trên|hơn|tối\s+thiểu|lớn\s+hơn|nhiều\s+hơn)\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?',
-            query_lower
+            r"(?:giá\s+)?(?:trên|hơn|tối\s+thiểu|lớn\s+hơn|nhiều\s+hơn)\s+(\d+(?:[.,]\d+)?)\s*(triệu|tr|k|đ|usd)?",
+            query_lower,
         )
         if over_match:
             val = parse_number(over_match.group(1), over_match.group(2))
-            if val is not None: min_price = val
+            if val is not None:
+                min_price = val
 
     sort = None
-    if any(k in query_lower for k in ["rẻ nhất", "thấp nhất", "giá tăng", "thấp đến cao"]):
+    if any(
+        k in query_lower for k in ["rẻ nhất", "thấp nhất", "giá tăng", "thấp đến cao"]
+    ):
         sort = "price_asc"
-    elif any(k in query_lower for k in ["đắt nhất", "cao nhất", "giá giảm", "cao xuống thấp"]):
+    elif any(
+        k in query_lower for k in ["đắt nhất", "cao nhất", "giá giảm", "cao xuống thấp"]
+    ):
         sort = "price_desc"
     elif any(k in query_lower for k in ["phổ biến", "bán chạy", "hot"]):
         sort = "popular"
@@ -321,18 +349,37 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
         sort = "newest"
 
     clean_query = query_lower
-    if range_match: clean_query = clean_query.replace(range_match.group(0), "")
-    if under_match: clean_query = clean_query.replace(under_match.group(0), "")
-    if over_match:  clean_query = clean_query.replace(over_match.group(0), "")
-    
-    keywords_remove = ["rẻ nhất", "thấp nhất", "giá tăng", "thấp đến cao", "đắt nhất", "cao nhất", "giá giảm", "cao xuống thấp", "phổ biến", "bán chạy", "hot", "mới nhất", "mới về"]
-    for kw in keywords_remove:
-        clean_query = re.sub(rf'\b{kw}\b', '', clean_query, flags=re.IGNORECASE)
-        
-    if matched_category:
-        clean_query = re.sub(rf'\b{matched_category}\b', '', clean_query, flags=re.IGNORECASE)
+    if range_match:
+        clean_query = clean_query.replace(range_match.group(0), "")
+    if under_match:
+        clean_query = clean_query.replace(under_match.group(0), "")
+    if over_match:
+        clean_query = clean_query.replace(over_match.group(0), "")
 
-    clean_query = re.sub(r'\s+', ' ', clean_query).strip() or query_text
+    keywords_remove = [
+        "rẻ nhất",
+        "thấp nhất",
+        "giá tăng",
+        "thấp đến cao",
+        "đắt nhất",
+        "cao nhất",
+        "giá giảm",
+        "cao xuống thấp",
+        "phổ biến",
+        "bán chạy",
+        "hot",
+        "mới nhất",
+        "mới về",
+    ]
+    for kw in keywords_remove:
+        clean_query = re.sub(rf"\b{kw}\b", "", clean_query, flags=re.IGNORECASE)
+
+    if matched_category:
+        clean_query = re.sub(
+            rf"\b{matched_category}\b", "", clean_query, flags=re.IGNORECASE
+        )
+
+    clean_query = re.sub(r"\s+", " ", clean_query).strip() or query_text
 
     return {
         "category": matched_category,
@@ -340,14 +387,14 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
         "max_price": max_price,
         "sort": sort,
         "search_query": clean_query,
-        "is_fallback": True
+        "is_fallback": True,
     }
 
 
 async def parse_intent(query_text: str, categories: list[str]) -> dict:
     """Sử dụng mô hình ngôn ngữ lớn LLM để bóc tách ý định lọc dữ liệu của người dùng.
 
-    Thực hiện gọi API bất đồng bộ kết hợp cơ chế thử lại (fallback) liên tiếp giữa 
+    Thực hiện gọi API bất đồng bộ kết hợp cơ chế thử lại (fallback) liên tiếp giữa
     các phiên bản mô hình khác nhau nhằm tăng tính sẵn sàng của dịch vụ.
 
     Args:
@@ -355,15 +402,24 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
         categories: Bộ nhãn tên danh mục sản phẩm lấy ra từ hệ thống DB.
 
     Returns:
-        Một cấu trúc dữ liệu chuẩn hóa dạng Dict chứa các trường thông tin: 
+        Một cấu trúc dữ liệu chuẩn hóa dạng Dict chứa các trường thông tin:
         category, min_price, max_price, sort, search_query và trạng thái fallback.
     """
     if not query_text or not query_text.strip():
-        return {"category": None, "min_price": None, "max_price": None, "sort": None, "search_query": "", "is_fallback": True}
+        return {
+            "category": None,
+            "min_price": None,
+            "max_price": None,
+            "sort": None,
+            "search_query": "",
+            "is_fallback": True,
+        }
 
     cats_str = ",".join(sorted(categories))
-    query_hash = hashlib.md5(f"intent:{query_text}:{cats_str}".encode('utf-8')).hexdigest()
-    
+    query_hash = hashlib.md5(
+        f"intent:{query_text}:{cats_str}".encode("utf-8")
+    ).hexdigest()
+
     cached = await cache.get(query_hash)
     if cached:
         return cached
@@ -377,11 +433,11 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
         prompt = (
             f"You are an AI assistant in an E-Commerce system. Your task is to parse a user search query into structured search filters.\n"
             f"Available categories: {categories}\n\n"
-            f"Given the user query: \"{query_text}\"\n\n"
+            f'Given the user query: "{query_text}"\n\n'
             f"Extract parameters as JSON format with keys: category (string or null), min_price (number or null), max_price (number or null), sort (string or null), search_query (string)."
         )
-        payload = {"contents": [{ "parts": [{"text": prompt}]}]}
-        
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
         models = ["gemini-3.5-flash", "gemini-3.1-flash-lite"]
         for model in models:
             try:
@@ -390,22 +446,30 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
                     resp = await client.post(url, json=payload)
                     if resp.status_code == 200:
                         data = resp.json()
-                        text_response = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                        text_response = (
+                            data.get("candidates", [{}])[0]
+                            .get("content", {})
+                            .get("parts", [{}])[0]
+                            .get("text", "")
+                        )
                         if text_response:
                             parsed = json.loads(text_response.strip())
-                            
+
                             result = {
                                 "category": parsed.get("category"),
                                 "min_price": parsed.get("min_price"),
                                 "max_price": parsed.get("max_price"),
                                 "sort": parsed.get("sort"),
-                                "search_query": parsed.get("search_query") or query_text,
-                                "is_fallback": False
+                                "search_query": parsed.get("search_query")
+                                or query_text,
+                                "is_fallback": False,
                             }
                             await cache.set(query_hash, result)
                             return result
             except Exception as model_exc:
-                logger.warning(f"Error calling {model}: {model_exc}. Trying next fallback model.")
+                logger.warning(
+                    f"Error calling {model}: {model_exc}. Trying next fallback model."
+                )
 
     except Exception as e:
         logger.warning(f"Error calling Gemini intent API: {e}. Using mock parsing.")

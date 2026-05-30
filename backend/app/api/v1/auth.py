@@ -5,7 +5,16 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import get_db
-from app.schemas.auth import ForgotPasswordIn, LoginIn, LogoutIn, RefreshIn, RegisterIn, ResendVerificationOtpIn, ResetPasswordIn, VerifyOtpIn
+from app.schemas.auth import (
+    ForgotPasswordIn,
+    LoginIn,
+    LogoutIn,
+    RefreshIn,
+    RegisterIn,
+    ResendVerificationOtpIn,
+    ResetPasswordIn,
+    VerifyOtpIn,
+)
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -25,7 +34,9 @@ def verify_otp(request: Request, payload: VerifyOtpIn, db: Session = Depends(get
 
 @router.post("/resend-verification-otp")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-def resend_verification_otp(request: Request, payload: ResendVerificationOtpIn, db: Session = Depends(get_db)):
+def resend_verification_otp(
+    request: Request, payload: ResendVerificationOtpIn, db: Session = Depends(get_db)
+):
     return auth_service.resend_verification_otp(db, payload.email)
 
 
@@ -37,7 +48,11 @@ def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
 
 @router.post("/token", include_in_schema=False)
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-def token(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def token(
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     result = auth_service.login(db, form.username, form.password)
     return result["data"]
 
@@ -54,11 +69,17 @@ def logout(payload: LogoutIn):
 
 @router.post("/forgot-password")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-def forgot_password(request: Request, payload: ForgotPasswordIn, db: Session = Depends(get_db)):
+def forgot_password(
+    request: Request, payload: ForgotPasswordIn, db: Session = Depends(get_db)
+):
     return auth_service.forgot_password(db, payload.email)
 
 
 @router.post("/reset-password")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
-def reset_password(request: Request, payload: ResetPasswordIn, db: Session = Depends(get_db)):
-    return auth_service.reset_password(db, payload.email, payload.otp, payload.new_password)
+def reset_password(
+    request: Request, payload: ResetPasswordIn, db: Session = Depends(get_db)
+):
+    return auth_service.reset_password(
+        db, payload.email, payload.otp, payload.new_password
+    )
