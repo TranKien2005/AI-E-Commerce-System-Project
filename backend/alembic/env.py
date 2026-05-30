@@ -5,6 +5,11 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
+import logging
+import time
+
+logger = logging.getLogger("alembic.migration")
+
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
@@ -23,8 +28,11 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
+    start = time.perf_counter()
     with context.begin_transaction():
         context.run_migrations()
+    elapsed = time.perf_counter() - start
+    logger.info("Migration completed in %.3f seconds", elapsed)
 
 
 def run_migrations_online() -> None:
@@ -35,8 +43,11 @@ def run_migrations_online() -> None:
     )
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
+        start = time.perf_counter()
         with context.begin_transaction():
             context.run_migrations()
+        elapsed = time.perf_counter() - start
+        logger.info("Migration completed in %.3f seconds", elapsed)
 
 
 if context.is_offline_mode():
