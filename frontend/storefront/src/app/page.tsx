@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BadgePercent, Headphones, ShieldCheck, Store, Truck } from "lucide-react";
@@ -143,3 +144,4 @@ export default async function Home() {
     </div>
   );
 }
+

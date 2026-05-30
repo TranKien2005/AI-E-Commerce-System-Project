@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import Link from "next/link";
 import { ArrowRight, BadgePercent, Package, Sparkles } from "lucide-react";
 import { getCategories } from "@/lib/storefront-api";
@@ -44,3 +45,4 @@ export default async function CollectionsPage() {
     </div>
   );
 }
+
