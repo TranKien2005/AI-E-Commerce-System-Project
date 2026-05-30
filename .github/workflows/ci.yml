@@ -211,10 +211,6 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           PYTHONPATH: .
         run: pytest -v
-        env:
-          DATABASE_URL: postgresql://postgres:password@localhost:5433/ecommerce
-          REDIS_URL: redis://localhost:6379/0
-        run: pytest
   backend-lint:
     name: Backend Lint (Ruff)
     runs-on: ubuntu-latest
