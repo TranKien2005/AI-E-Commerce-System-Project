@@ -1,11 +1,4 @@
 from fastapi import FastAPI
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from sqlalchemy import Engine
 
 from app.core.config import settings
@@ -14,6 +7,14 @@ from app.core.config import settings
 def configure_tracing(app: FastAPI, engine: Engine) -> None:
     if not settings.TRACING_ENABLED:
         return
+
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     resource = Resource.create({"service.name": settings.OTEL_SERVICE_NAME})
     provider = TracerProvider(resource=resource)

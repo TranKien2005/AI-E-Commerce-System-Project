@@ -24,3 +24,4 @@ opentelemetry-instrumentation-fastapi==0.49b2
 opentelemetry-instrumentation-sqlalchemy==0.49b2
 datasets==3.0.1
 redis==5.0.8
+pybreaker==1.2.0

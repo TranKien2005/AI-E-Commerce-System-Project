@@ -491,7 +491,8 @@ def search_products(
 
         # Cung cấp danh sách ngữ cảnh Category giúp mô hình AI phân tách ý định chính xác
         categories = db.scalars(select(Category.name)).all()
-        ai_res = parse_intent(query, categories)
+        import asyncio
+        ai_res = asyncio.run(parse_intent(query, categories))
         ai_parsed = ai_res
         is_fallback = ai_res.get("is_fallback", False)
 
@@ -520,7 +521,8 @@ def search_products(
                 category_id = db_cat.id
 
         # Thực hiện truy vấn không gian Vector tìm Top-K sản phẩm tương đồng về mặt ngữ nghĩa
-        product_ids = vector_store.query_similarity(query, k=50)
+        import asyncio
+        product_ids = asyncio.run(vector_store.query_similarity(query, k=50))
 
     res = _build_query(
         db,
@@ -631,7 +633,8 @@ def init_search_index(db: Session):
         # Chỉ lập chỉ mục các sản phẩm đang hiển thị (chưa soft-delete)
         products = db.scalars(select(Product).where(Product.deleted_at.is_(None))).all()
         for p in products:
-            vector_store.add_product(p.id, p.name, p.description, p.category_id)
+            import asyncio
+            asyncio.run(vector_store.add_product(p.id, p.name, p.description, p.category_id))
 
         INDEX_STATUS = "ready"
         logger.info(

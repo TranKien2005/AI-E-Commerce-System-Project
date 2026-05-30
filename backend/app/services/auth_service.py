@@ -26,6 +26,7 @@ REFRESH_TOKEN_EXPIRE_SECONDS = 60 * 24 * 14 * 60  # 14 days in seconds
 
 # Redis client for OTP and revoked tokens
 _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+_otp_store: dict[str, dict[str, str]] = {}
 
 
 def _generate_otp() -> str:
@@ -41,6 +42,7 @@ def _revoked_refresh_key(refresh_token: str) -> str:
 
 
 def _store_otp(email: str, code: str) -> None:
+    _otp_store[email] = {"code": code}
     _redis_client.setex(_otp_key(email), OTP_EXPIRE_SECONDS, code)
 
 
@@ -48,9 +50,12 @@ def _verify_otp(email: str, code: str) -> bool:
     """Validate and consume a single-use OTP."""
     key = _otp_key(email)
     stored_code = _redis_client.get(key)
+    if stored_code is None:
+        stored_code = _otp_store.get(email, {}).get("code")
     if stored_code != code:
         return False
     _redis_client.delete(key)
+    _otp_store.pop(email, None)
     return True
 
 
