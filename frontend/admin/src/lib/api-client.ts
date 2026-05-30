@@ -1,4 +1,4 @@
-type ApiEnvelope<T> =
+﻿type ApiEnvelope<T> =
   | { success: true; data: T; message?: string }
   | { success: false; error: { code: string; message: string; details?: unknown[] } };
 
@@ -11,7 +11,7 @@ export class ApiError extends Error {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 export async function apiFetch<T>(path: string, init: RequestInit & { token?: string | null } = {}): Promise<T> {
-  const { token, headers, ...requestInit } = init;
+  const { token, headers, ...requestInit }: { token?: string | null; headers?: Record<string, string> } = init;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...requestInit,
     headers: {
@@ -25,14 +25,14 @@ export async function apiFetch<T>(path: string, init: RequestInit & { token?: st
 
   if (response.status === 204) return undefined as T;
 
-  let envelope: any;
+  let envelope: unknown;
   try {
     envelope = await response.json();
-  } catch (err) {
+  } catch {
     if (!response.ok) {
       throw new ApiError(response.statusText || `HTTP Error ${response.status}`, response.status);
     }
-    throw new ApiError("Phản hồi từ máy chủ không đúng định dạng JSON", response.status);
+    throw new ApiError("Pháº£n há»“i tá»« mÃ¡y chá»§ khÃ´ng Ä‘Ãºng Ä‘á»‹nh dáº¡ng JSON", response.status);
   }
 
   if (!response.ok || (envelope && envelope.success === false)) {

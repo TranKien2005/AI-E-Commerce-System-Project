@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import hashlib
@@ -343,7 +343,7 @@ def collect_products(args: argparse.Namespace, source_domain: str) -> list[Impor
     try:
         rows = stream_amazon_rows(args.dataset, metadata_config(source_domain), args.split, args.trust_remote_code)
         products = normalize_product_rows(rows, args.limit, source_domain, seen_source_ids)
-    except Exception as loader_exc:
+    except Exception :
         try:
             rows = stream_amazon_jsonl(args.dataset, metadata_jsonl_path(source_domain))
             products = normalize_product_rows(rows, args.limit, source_domain, seen_source_ids)
@@ -753,8 +753,8 @@ def parse_timestamp(value: Any) -> datetime | None:
 
 
 def random_shipping_address(seed_value: str) -> str:
-    cities = ["Hà Nội", "TP. Hồ Chí Minh", "Đà Nẵng", "Cần Thơ", "Hải Phòng"]
-    streets = ["Nguyễn Trãi", "Lê Lợi", "Trần Hưng Đạo", "Hai Bà Trưng", "Phan Chu Trinh"]
+    cities = ["HÃ  Ná»™i", "TP. Há»“ ChÃ­ Minh", "ÄÃ  Náºµng", "Cáº§n ThÆ¡", "Háº£i PhÃ²ng"]
+    streets = ["Nguyá»…n TrÃ£i", "LÃª Lá»£i", "Tráº§n HÆ°ng Äáº¡o", "Hai BÃ  TrÆ°ng", "Phan Chu Trinh"]
     digest = int(stable_hash(seed_value), 16)
     return f"{10 + digest % 190} {streets[digest % len(streets)]}, {cities[(digest // 7) % len(cities)]}"
 

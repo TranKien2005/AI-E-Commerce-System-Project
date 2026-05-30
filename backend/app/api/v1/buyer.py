@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import StreamingResponse
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.core.responses import fail, ok
 from app.db.session import get_db
-from app.models.entities import Category, Conversation, Message, Notification, Product, ProductImage, ProductVideo, Review, Shop, User
+from app.models.entities import Category, Conversation, Message, Product, ProductImage, ProductVideo, Review, Shop, User
 from app.schemas.buyer import CartAddIn, ChangePasswordIn, CreateOrderIn, DeleteAccountIn, IntentSearchIn, MessageIn, NotificationReadIn, ReportIn, ReviewIn, SellerRequestIn, UpdateMeIn
 from app.services import buyer_service, chatbot_service, search_service
 from app.services.chat_events import chat_events
@@ -154,7 +154,7 @@ def recommend_products(page: int = 1, page_size: int = 20, db: Session = Depends
 def list_product_reviews(id: int, db: Session = Depends(get_db)):
     product = db.get(Product, id)
     if not product:
-        fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m")
     items = db.scalars(select(Review).where(Review.product_id == id)).all()
     return ok({"items": [{
         "id": r.id,
@@ -186,7 +186,7 @@ def list_shops(q: str | None = None, page: int = 1, page_size: int = 12, db: Ses
 def get_shop_public(id: int, db: Session = Depends(get_db)):
     shop = db.get(Shop, id)
     if not shop:
-        fail(404, "NOT_FOUND", "Không tìm thấy cửa hàng")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y cá»­a hÃ ng")
     return ok(_mask_shop(shop))
 
 
@@ -278,9 +278,9 @@ def list_conversations(db: Session = Depends(get_db), current_user: User = Depen
 def list_messages(conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
-        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y há»™i thoáº¡i")
     if not _ensure_buyer_conversation_member(conversation, current_user.id):
-        fail(403, "FORBIDDEN", "Không có quyền truy cập")
+        fail(403, "FORBIDDEN", "KhÃ´ng cÃ³ quyá»n truy cáº­p")
     items = db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.id.asc())).all()
     return ok({"items": [_mask_message_sender(m) for m in items]})
 
@@ -289,9 +289,9 @@ def list_messages(conversation_id: int, db: Session = Depends(get_db), current_u
 def send_message(conversation_id: int, payload: MessageIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
-        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y há»™i thoáº¡i")
     if not _ensure_buyer_conversation_member(conversation, current_user.id):
-        fail(403, "FORBIDDEN", "Không có quyền truy cập")
+        fail(403, "FORBIDDEN", "KhÃ´ng cÃ³ quyá»n truy cáº­p")
     m = Message(conversation_id=conversation_id, sender_id=current_user.id, content=payload.content, is_bot=False, is_read=False)
     db.add(m)
     db.commit()
@@ -309,9 +309,9 @@ def send_message(conversation_id: int, payload: MessageIn, db: Session = Depends
 def send_message_stream(conversation_id: int, payload: MessageIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
-        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y há»™i thoáº¡i")
     if not _ensure_buyer_conversation_member(conversation, current_user.id):
-        fail(403, "FORBIDDEN", "Không có quyền truy cập")
+        fail(403, "FORBIDDEN", "KhÃ´ng cÃ³ quyá»n truy cáº­p")
 
     user_message = Message(conversation_id=conversation_id, sender_id=current_user.id, content=payload.content, is_bot=False, is_read=False)
     db.add(user_message)
@@ -362,9 +362,9 @@ def send_message_stream(conversation_id: int, payload: MessageIn, db: Session = 
 def read_conversation(conversation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
-        fail(404, "NOT_FOUND", "Không tìm thấy hội thoại")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y há»™i thoáº¡i")
     if not _ensure_buyer_conversation_member(conversation, current_user.id):
-        fail(403, "FORBIDDEN", "Không có quyền truy cập")
+        fail(403, "FORBIDDEN", "KhÃ´ng cÃ³ quyá»n truy cáº­p")
     items = db.scalars(select(Message).where(Message.conversation_id == conversation_id, Message.is_read.is_(False), Message.sender_id != current_user.id)).all()
     for m in items:
         m.is_read = True
@@ -376,7 +376,7 @@ def read_conversation(conversation_id: int, db: Session = Depends(get_db), curre
 def get_product(id: int, db: Session = Depends(get_db)):
     product = db.get(Product, id)
     if not product:
-        fail(404, "NOT_FOUND", "Không tìm thấy sản phẩm")
+        fail(404, "NOT_FOUND", "KhÃ´ng tÃ¬m tháº¥y sáº£n pháº©m")
     # Buyer-oriented view: include images, shop info, category, attributes
     images = db.scalars(select(ProductImage).where(ProductImage.product_id == id)).all()
     videos = db.scalars(select(ProductVideo).where(ProductVideo.product_id == id)).all()
