@@ -632,7 +632,10 @@ def init_search_index(db: Session):
         products = db.scalars(select(Product).where(Product.deleted_at.is_(None))).all()
         for p in products:
             import asyncio
-            asyncio.run(vector_store.add_product(p.id, p.name, p.description, p.category_id))
+
+            asyncio.run(
+                vector_store.add_product(p.id, p.name, p.description, p.category_id)
+            )
 
         INDEX_STATUS = "ready"
         logger.info(
