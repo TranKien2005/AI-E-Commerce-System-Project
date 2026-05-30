@@ -451,7 +451,7 @@ def search_shops(db: Session, query: str, page: int, page_size: int):
     }
 
 
-def search_products(
+async def search_products(
     db: Session,
     query: str,
     page: int,
@@ -491,8 +491,7 @@ def search_products(
 
         # Cung cấp danh sách ngữ cảnh Category giúp mô hình AI phân tách ý định chính xác
         categories = db.scalars(select(Category.name)).all()
-        import asyncio
-        ai_res = asyncio.run(parse_intent(query, categories))
+        ai_res = await parse_intent(query, categories)
         ai_parsed = ai_res
         is_fallback = ai_res.get("is_fallback", False)
 
@@ -521,8 +520,7 @@ def search_products(
                 category_id = db_cat.id
 
         # Thực hiện truy vấn không gian Vector tìm Top-K sản phẩm tương đồng về mặt ngữ nghĩa
-        import asyncio
-        product_ids = asyncio.run(vector_store.query_similarity(query, k=50))
+        product_ids = await vector_store.query_similarity(query, k=50)
 
     res = _build_query(
         db,
@@ -543,7 +541,7 @@ def search_products(
     return res
 
 
-def search_marketplace(
+async def search_marketplace(
     db: Session,
     query: str,
     page: int,
@@ -578,7 +576,7 @@ def search_marketplace(
     Returns:
         Một dict tổng hợp chứa hai nhánh kết quả độc lập: 'shops' và 'products'.
     """
-    products = search_products(
+    products = await search_products(
         db,
         query=query,
         page=page,

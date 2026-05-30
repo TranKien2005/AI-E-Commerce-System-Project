@@ -1,4 +1,4 @@
-﻿name: CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -203,6 +203,7 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:password@localhost:5433/ecommerce
+          TRACING_ENABLED: "false"
         run: alembic upgrade head
       - name: Run Pytest
         working-directory: backend
@@ -210,6 +211,7 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://postgres:password@localhost:5433/ecommerce
           REDIS_URL: redis://localhost:6379/0
           PYTHONPATH: .
+          TRACING_ENABLED: "false"
         run: pytest -v
   backend-lint:
     name: Backend Lint (Ruff)
