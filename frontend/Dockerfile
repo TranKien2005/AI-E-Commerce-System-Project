@@ -24,11 +24,9 @@ RUN addgroup --system --gid 1001 nodejs \
 
 COPY --from=builder --chown=nextjs:nodejs /app/storefront/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/storefront/.next/static ./storefront/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/storefront/public ./storefront/public
 
 COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/admin/.next/static ./admin/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/admin/public ./admin/public
 
 USER nextjs
 
