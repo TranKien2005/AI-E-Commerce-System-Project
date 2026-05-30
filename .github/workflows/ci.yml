@@ -25,8 +25,9 @@ jobs:
 
       - name: Update deployment images
         run: |
-          IMAGE_BACKEND="ghcr.io/${{ github.repository }}/backend:sha-${GITHUB_SHA::7}"
-          IMAGE_FRONTEND="ghcr.io/${{ github.repository }}/frontend:sha-${GITHUB_SHA::7}"
+          REPOSITORY="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE_BACKEND="ghcr.io/${REPOSITORY}/backend:sha-${GITHUB_SHA::7}"
+          IMAGE_FRONTEND="ghcr.io/${REPOSITORY}/frontend:sha-${GITHUB_SHA::7}"
           sed -i "s|your-registry/ecommerce-backend:latest|$IMAGE_BACKEND|g" k8s/application.yaml
           sed -i "s|your-registry/ecommerce-frontend:latest|$IMAGE_FRONTEND|g" k8s/application.yaml
 
@@ -111,13 +112,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image repository
+        id: image
+        run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata (tags & labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
+          images: ${{ steps.image.outputs.repository }}
           tags: |
-            type=sha,prefix=
+            type=sha,prefix=sha-
             type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
