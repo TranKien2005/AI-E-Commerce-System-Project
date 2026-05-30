@@ -19,6 +19,7 @@ from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
 def _client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
@@ -108,5 +109,3 @@ def reset_password(
     return auth_service.reset_password(
         db, payload.email, payload.otp, payload.new_password
     )
-
-

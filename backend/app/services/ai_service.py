@@ -19,20 +19,35 @@ class RedisCache:
     """Hệ thống quản lý bộ nhớ đệm Redis hỗ trợ cơ chế bất đồng bộ."""
 
     def __init__(self):
-        """Khởi tạo kết nối đến Redis Cluster dựa trên URL cấu hình."""
-        self.client = None
+        """Khởi tạo cấu trúc cache (kết nối sẽ được tạo lazily)."""
+        self._client = None
+        self._loop = None
+
+    @property
+    def client(self):
         try:
-            self.client = redis.from_url(
-                settings.REDIS_URL, socket_timeout=1.0, decode_responses=True
-            )
-            logger.info(
-                "Connected to Redis successfully for Intent-based Search cache."
-            )
-        except Exception as e:
-            logger.warning(
-                f"Could not connect to Redis: {e}. AI search caching will be bypassed."
-            )
-            self.client = None
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+
+        # Reset client nếu event loop hiện tại thay đổi (do reload hoặc test)
+        if self._client is not None and self._loop != current_loop:
+            self._client = None
+            self._loop = None
+
+        if self._client is None:
+            try:
+                self._client = redis.from_url(
+                    settings.REDIS_URL, socket_timeout=1.0, decode_responses=True
+                )
+                self._loop = current_loop
+            except Exception as e:
+                logger.warning(
+                    f"Could not connect to Redis: {e}. AI search caching will be bypassed."
+                )
+                self._client = None
+                self._loop = None
+        return self._client
 
     async def get(self, key: str) -> dict | None:
         """Truy xuất và giải mã dữ liệu JSON từ bộ nhớ cache theo khóa định danh.
@@ -44,10 +59,11 @@ class RedisCache:
             Một dictionary chứa dữ liệu được giải mã nếu thành công, ngược lại
             trả về None nếu không tìm thấy khóa hoặc mất kết nối Redis.
         """
-        if not self.client:
+        client = self.client
+        if not client:
             return None
         try:
-            val = await self.client.get(key)
+            val = await client.get(key)
             if val:
                 return json.loads(val)
         except Exception as e:
@@ -62,10 +78,11 @@ class RedisCache:
             value: Cấu trúc dữ liệu dictionary cần lưu cache.
             ttl: Thời gian tồn tại của khóa trong cache (tính bằng giây).
         """
-        if not self.client:
+        client = self.client
+        if not client:
             return
         try:
-            await self.client.setex(key, ttl, json.dumps(value))
+            await client.setex(key, ttl, json.dumps(value))
         except Exception as e:
             logger.warning(f"Error writing to Redis cache: {e}")
 

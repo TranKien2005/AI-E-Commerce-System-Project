@@ -95,15 +95,6 @@ export default function ProductsCatalogClient({
 
       <SearchModeBar defaultQuery={query} defaultMode={mode === "intent" ? "intent" : "keyword"} className="mb-6" />
 
-      {mode === "intent" && isFallback && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm flex items-center gap-3">
-          <Sparkles size={16} className="text-amber-500 animate-pulse shrink-0" />
-          <span>
-            <strong>AI Fallback Mode:</strong> Trình phân tích ý định AI hiện đang tạm bận. Hệ thống đã tự động chuyển sang phân tích ý định dự phòng bằng Regex và từ khóa truyền thống để phục vụ bạn.
-          </span>
-        </div>
-      )}
-
       {mode === "intent" && aiParsed && (
         <div className="mb-6 rounded-[1.5rem] border border-violet-100 bg-violet-50/50 p-4 text-xs text-violet-800 backdrop-blur-xl">
           <div className="flex items-center gap-2 font-semibold text-violet-950 mb-2">

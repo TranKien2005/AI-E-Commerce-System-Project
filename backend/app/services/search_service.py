@@ -630,12 +630,16 @@ def init_search_index(db: Session):
 
         # Chỉ lập chỉ mục các sản phẩm đang hiển thị (chưa soft-delete)
         products = db.scalars(select(Product).where(Product.deleted_at.is_(None))).all()
-        for p in products:
-            import asyncio
 
-            asyncio.run(
-                vector_store.add_product(p.id, p.name, p.description, p.category_id)
-            )
+        import asyncio
+
+        async def index_all():
+            for p in products:
+                await vector_store.add_product(
+                    p.id, p.name, p.description, p.category_id
+                )
+
+        asyncio.run(index_all())
 
         INDEX_STATUS = "ready"
         logger.info(

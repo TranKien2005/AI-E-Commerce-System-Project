@@ -131,7 +131,7 @@ def list_categories(db: Session = Depends(get_db)):
 
 
 @router.get("/products")
-def list_products(
+async def list_products(
     keyword: str | None = None,
     q: str | None = None,
     search_type: str = "keyword",
@@ -148,7 +148,7 @@ def list_products(
     db: Session = Depends(get_db),
 ):
     query_text = q if q is not None else (keyword or "")
-    data = search_service.search_marketplace(
+    data = await search_service.search_marketplace(
         db,
         query=query_text,
         page=page,
@@ -182,8 +182,8 @@ def get_search_status():
 
 
 @router.post("/products/intent-search")
-def intent_search(payload: IntentSearchIn, db: Session = Depends(get_db)):
-    data = search_service.search_marketplace(
+async def intent_search(payload: IntentSearchIn, db: Session = Depends(get_db)):
+    data = await search_service.search_marketplace(
         db,
         query=payload.query,
         page=payload.page,

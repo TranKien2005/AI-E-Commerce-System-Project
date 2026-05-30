@@ -27,6 +27,18 @@ from app.services.email_service import send_email
 logger = logging.getLogger(__name__)
 
 
+def _run_async(coro):
+    """Chạy một coroutine từ môi trường đồng bộ, hỗ trợ cả AnyIO threadpool và sync environment."""
+    try:
+        from anyio.from_thread import run
+
+        return run(lambda: coro)
+    except RuntimeError:
+        import asyncio
+
+        return asyncio.run(coro)
+
+
 def _send_email_after_commit(to_email: str, subject: str, html: str):
     """Send non-critical buyer email after order updates commit."""
     try:
@@ -126,7 +138,7 @@ def create_product(
     try:
         from app.services.ai_service import vector_store
 
-        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+        _run_async(vector_store.add_product(p.id, p.name, p.description, p.category_id))
     except Exception as e:
         logger.warning(f"Failed to add product {p.id} to search index: {e}")
     return ok({"id": p.id})
@@ -156,7 +168,7 @@ def update_product(
     try:
         from app.services.ai_service import vector_store
 
-        vector_store.add_product(p.id, p.name, p.description, p.category_id)
+        _run_async(vector_store.add_product(p.id, p.name, p.description, p.category_id))
     except Exception as e:
         logger.warning(f"Failed to update product {p.id} in search index: {e}")
     return ok({})
@@ -174,7 +186,7 @@ def delete_product(db: Session, user: User, product_id: int):
     try:
         from app.services.ai_service import vector_store
 
-        vector_store.delete_product(p.id)
+        _run_async(vector_store.delete_product(p.id))
     except Exception as e:
         logger.warning(f"Failed to delete product {p.id} from search index: {e}")
 
