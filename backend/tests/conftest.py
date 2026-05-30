@@ -1,6 +1,7 @@
 import pytest
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
@@ -28,34 +29,43 @@ def client():
     class _FakeRedis:
         def __init__(self):
             self._data = {}
+
         def setex(self, key, ttl, value):
             self._data[key] = value
+
         def get(self, key):
             return self._data.get(key)
+
         def delete(self, *keys):
             for k in keys:
                 self._data.pop(k, None)
+
         def exists(self, key):
             return 1 if key in self._data else 0
+
     fake_redis = _FakeRedis()
 
     with patch("app.db.session.engine", engine):
         with patch("app.db.session.SessionLocal", TestingSessionLocal):
             from app.services import auth_service
+
             auth_service._redis_client = fake_redis  # type: ignore
 
             from app.main import app
             from app.db import base  # noqa: F401
             from app.models.base import Base
+
             Base.metadata.create_all(bind=engine)
 
             db = TestingSessionLocal()
             from app.core.security import get_password_hash
             from app.models.entities import User
             from datetime import datetime, timezone
+
             existing = db.scalar(User.__table__.select().limit(1))
             if existing is None:
                 from app.models.entities import Shop
+
                 buyer = User(
                     email="buyer@example.com",
                     password=get_password_hash("Buyer@123"),
@@ -82,16 +92,18 @@ def client():
                 )
                 db.add_all([admin, buyer, seller])
                 db.flush()
-                
-                db.add(Shop(
-                    owner_id=seller.id,
-                    name="Amazon Seed Shop",
-                    description="Imported catalog",
-                    status="active"
-                ))
+
+                db.add(
+                    Shop(
+                        owner_id=seller.id,
+                        name="Amazon Seed Shop",
+                        description="Imported catalog",
+                        status="active",
+                    )
+                )
                 db.commit()
             db.close()
-            
+
             with TestClient(app) as tc:
                 yield tc
 

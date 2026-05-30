@@ -18,6 +18,7 @@ from app.core.security import (
 )
 from app.models.entities import User
 from app.services.email_service import send_otp_email
+from app.core.metrics import REGISTRATION_IP_COUNTER, LOGIN_ATTEMPTS_COUNTER, OTP_VERIFY_COUNTER
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,18 @@ def ensure_password(password: str):
         )
 
 
-def register(db: Session, email: str, password: str, full_name: str):
+def register(db: Session, email: str, password: str, full_name: str, client_ip: str = "unknown"):
+    """Create a pending user and send a verification OTP."""
+    try:
+        res = _register_impl(db, email, password, full_name)
+        REGISTRATION_IP_COUNTER.labels(ip_address=client_ip, status="success").inc()
+        return res
+    except Exception as e:
+        REGISTRATION_IP_COUNTER.labels(ip_address=client_ip, status="failed").inc()
+        raise e
+
+
+def _register_impl(db: Session, email: str, password: str, full_name: str):
     """Create a pending user and send a verification OTP."""
     ensure_password(password)
     email = email.strip().lower()
@@ -125,7 +137,17 @@ def register(db: Session, email: str, password: str, full_name: str):
     return ok({"id": user.id, "email": user.email})
 
 
-def verify_otp(db: Session, email: str, otp: str):
+def verify_otp(db: Session, email: str, otp: str, client_ip: str = "unknown"):
+    try:
+        res = _verify_otp_impl(db, email, otp)
+        OTP_VERIFY_COUNTER.labels(ip_address=client_ip, status="success").inc()
+        return res
+    except Exception as e:
+        OTP_VERIFY_COUNTER.labels(ip_address=client_ip, status="failed").inc()
+        raise e
+
+
+def _verify_otp_impl(db: Session, email: str, otp: str):
     email = email.strip().lower()
     user = db.scalar(select(User).where(User.email == email))
     if not user:
@@ -158,8 +180,18 @@ def resend_verification_otp(db: Session, email: str):
     return ok({"sent": True, "email": email})
 
 
-def login(db: Session, email: str, password: str):
+def login(db: Session, email: str, password: str, client_ip: str = "unknown"):
     """Authenticate an active, verified user and issue access/refresh tokens."""
+    try:
+        res = _login_impl(db, email, password)
+        LOGIN_ATTEMPTS_COUNTER.labels(ip_address=client_ip, status="success").inc()
+        return res
+    except Exception as e:
+        LOGIN_ATTEMPTS_COUNTER.labels(ip_address=client_ip, status="failed").inc()
+        raise e
+
+
+def _login_impl(db: Session, email: str, password: str):
     user = db.scalar(select(User).where(User.email == email.strip().lower()))
     if (
         not user

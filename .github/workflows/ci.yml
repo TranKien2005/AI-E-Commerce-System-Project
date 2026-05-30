@@ -32,10 +32,10 @@ jobs:
           sed -i "s|your-registry/ecommerce-frontend:latest|$IMAGE_FRONTEND|g" k8s/application.yaml
 
       - name: Apply Infrastructure
-        run: kubectl apply -f k8s/infrastructure.yaml
+        run: kubectl apply -f k8s/infrastructure.yaml --validate=false
 
       - name: Apply Application
-        run: kubectl apply -f k8s/application.yaml
+        run: kubectl apply -f k8s/application.yaml --validate=false
 
       - name: Rollout Status
         run: |

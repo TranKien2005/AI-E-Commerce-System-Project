@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.responses import fail, ok
+from app.core.metrics import ORDER_TRANSITION_COUNTER
 from app.models.entities import (
     Category,
     ChatbotConfig,
