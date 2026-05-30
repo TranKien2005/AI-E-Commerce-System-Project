@@ -351,8 +351,15 @@ def update_order_status(db: Session, user: User, order_id: int, status: str):
         "delivered": set(),
         "cancelled": set(),
     }
-    if status not in allowed.get(order.status, set()):
-        fail(400, "BAD_REQUEST", "Chuyển trạng thái đơn hàng không hợp lệ")
+    from_status = order.status
+    if status not in allowed.get(from_status, set()):
+        ORDER_TRANSITION_COUNTER.labels(
+            from_status=from_status, to_status=status, status="failed"
+        ).inc()
+        fail(400, "BAD_REQUEST", "Chuy?n tr?ng th?i ??n h?ng kh?ng h?p l?")
+    ORDER_TRANSITION_COUNTER.labels(
+        from_status=from_status, to_status=status, status="success"
+    ).inc()
     order.status = status
     db.add(
         Notification(

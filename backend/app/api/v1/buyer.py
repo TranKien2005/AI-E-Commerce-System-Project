@@ -1,12 +1,22 @@
 import json
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.metrics import CART_UPDATE_COUNTER
+
+
+def _client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 from app.core.responses import fail, ok
 from app.db.session import get_db
 from app.models.entities import (
@@ -643,10 +653,14 @@ def get_cart(
 
 @router.post("/cart/items", status_code=201)
 def add_cart(
+    request: Request,
     payload: CartAddIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    CART_UPDATE_COUNTER.labels(
+        ip_address=_client_ip(request), user_id=str(current_user.id)
+    ).inc()
     return buyer_service.add_cart(
         db, current_user, payload.product_id, payload.quantity
     )
@@ -654,11 +668,15 @@ def add_cart(
 
 @router.put("/cart/items/{item_id}")
 def update_cart(
+    request: Request,
     item_id: int,
     payload: CartUpdateIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    CART_UPDATE_COUNTER.labels(
+        ip_address=_client_ip(request), user_id=str(current_user.id)
+    ).inc()
     return buyer_service.update_cart(db, current_user, item_id, payload.quantity)
 
 
