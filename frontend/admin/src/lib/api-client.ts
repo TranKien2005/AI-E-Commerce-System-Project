@@ -1,4 +1,4 @@
-type ApiEnvelope<T> =
+﻿type ApiEnvelope<T> =
   | { success: true; data: T; message?: string }
   | { success: false; error: { code: string; message: string; details?: unknown[] } };
 
@@ -10,19 +10,15 @@ export class ApiError extends Error {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
-
 export async function apiFetch<T>(path: string, init: RequestInit & { token?: string | null } = {}): Promise<T> {
   const { token, headers, ...requestInit } = init;
-  const typedHeaders = headers as Record<string, string> | undefined;
-  
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...requestInit,
     headers: {
       Accept: "application/json",
       ...(requestInit.body ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...typedHeaders,
+      ...headers,
     },
     cache: requestInit.cache ?? "no-store",
   });
@@ -36,33 +32,37 @@ export async function apiFetch<T>(path: string, init: RequestInit & { token?: st
     if (!response.ok) {
       throw new ApiError(response.statusText || `HTTP Error ${response.status}`, response.status);
     }
-    throw new ApiError("Phản hồi từ máy chủ không đúng định dạng JSON", response.status);
+    throw new ApiError("Response from server is not valid JSON", response.status);
   }
 
-  const body = isRecord(envelope) ? envelope : null;
-  if (!response.ok || body?.success === false) {
+  if (!response.ok || (envelope && (envelope as Record<string, unknown>).success === false)) {
     let message = response.statusText || `HTTP Error ${response.status}`;
-    let code: string | undefined = undefined;
+    let code: string | undefined;
 
-    if (body) {
-      if (isRecord(body.error)) {
-        message = typeof body.error.message === "string" ? body.error.message : message;
-        code = typeof body.error.code === "string" ? body.error.code : undefined;
-      } else if (typeof body.detail === "string") {
-        message = body.detail;
-      } else if (isRecord(body.detail)) {
-        message = JSON.stringify(body.detail);
-      } else if (typeof body.message === "string") {
-        message = body.message;
-      } else if (typeof body.error === "string") {
-        message = body.error;
+    const envObj = envelope as Record<string, unknown>;
+
+    if (envObj && typeof envObj === "object") {
+      const error = envObj.error;
+      if (error && typeof error === "object") {
+        const errObj = error as Record<string, unknown>;
+        if (typeof errObj.message === "string") message = errObj.message;
+        if (typeof errObj.code === "string") code = errObj.code;
+      } else if (typeof error === "string") {
+        message = error;
+      }
+      if (typeof envObj.detail === "string") {
+        message = envObj.detail;
+      }
+      if (typeof envObj.message === "string") {
+        message = envObj.message;
       }
     }
     throw new ApiError(message, response.status, code);
   }
 
-  if (body && "success" in body && "data" in body) {
-    return body.data as T;
+  const envObj = envelope as Record<string, unknown>;
+  if (envObj && typeof envObj === "object" && "success" in envObj && "data" in envObj) {
+    return envObj.data as T;
   }
-  return envelope as T;
+  return envObj as T;
 }
