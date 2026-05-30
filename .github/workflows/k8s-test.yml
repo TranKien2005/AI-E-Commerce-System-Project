@@ -1,0 +1,33 @@
+﻿name: Test Kubernetes Configuration
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-k8s:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create Kubernetes Cluster (Kind)
+      uses: helm/kind-action@v1.10.0
+
+    - name: Verify Cluster Ready
+      run: |
+        kubectl cluster-info
+        kubectl get nodes
+
+    - name: Validate Kubernetes YAML Syntax
+      run: |
+        kubectl apply -f k8s/infrastructure.yaml --dry-run=client
+
+    - name: Test Deploy to Virtual Cluster
+      run: |
+        kubectl apply -f k8s/infrastructure.yaml
+        sleep 20 
+        kubectl get all
