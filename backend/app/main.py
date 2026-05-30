@@ -29,6 +29,7 @@ def _poll_pool_metrics():
             pass
         time.sleep(10)
 
+
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
@@ -62,8 +63,6 @@ setup_exception_handlers(app)
 @app.get("/health")
 def health_check():
     return {"success": True, "data": {"status": "ok"}, "message": "OK"}
-
-
 
 
 @app.on_event("startup")

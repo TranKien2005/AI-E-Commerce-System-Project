@@ -30,13 +30,21 @@ def _client_ip(request: Request) -> str:
 @router.post("/register", status_code=201)
 @limiter.limit(settings.RATE_LIMIT_AUTH)
 def register(request: Request, payload: RegisterIn, db: Session = Depends(get_db)):
-    return auth_service.register(db, payload.email, payload.password, payload.full_name, client_ip=_client_ip(request))
+    return auth_service.register(
+        db,
+        payload.email,
+        payload.password,
+        payload.full_name,
+        client_ip=_client_ip(request),
+    )
 
 
 @router.post("/verify-otp")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
 def verify_otp(request: Request, payload: VerifyOtpIn, db: Session = Depends(get_db)):
-    return auth_service.verify_otp(db, payload.email, payload.otp, client_ip=_client_ip(request))
+    return auth_service.verify_otp(
+        db, payload.email, payload.otp, client_ip=_client_ip(request)
+    )
 
 
 @router.post("/resend-verification-otp")
@@ -50,7 +58,9 @@ def resend_verification_otp(
 @router.post("/login")
 @limiter.limit(settings.RATE_LIMIT_AUTH)
 def login(request: Request, payload: LoginIn, db: Session = Depends(get_db)):
-    return auth_service.login(db, payload.email, payload.password, client_ip=_client_ip(request))
+    return auth_service.login(
+        db, payload.email, payload.password, client_ip=_client_ip(request)
+    )
 
 
 @router.post("/token", include_in_schema=False)
@@ -60,7 +70,9 @@ def token(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    result = auth_service.login(db, form.username, form.password, client_ip=_client_ip(request))
+    result = auth_service.login(
+        db, form.username, form.password, client_ip=_client_ip(request)
+    )
     return result["data"]
 
 

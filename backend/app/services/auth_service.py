@@ -18,7 +18,11 @@ from app.core.security import (
 )
 from app.models.entities import User
 from app.services.email_service import send_otp_email
-from app.core.metrics import REGISTRATION_IP_COUNTER, LOGIN_ATTEMPTS_COUNTER, OTP_VERIFY_COUNTER
+from app.core.metrics import (
+    REGISTRATION_IP_COUNTER,
+    LOGIN_ATTEMPTS_COUNTER,
+    OTP_VERIFY_COUNTER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +96,9 @@ def ensure_password(password: str):
         )
 
 
-def register(db: Session, email: str, password: str, full_name: str, client_ip: str = "unknown"):
+def register(
+    db: Session, email: str, password: str, full_name: str, client_ip: str = "unknown"
+):
     """Create a pending user and send a verification OTP."""
     try:
         res = _register_impl(db, email, password, full_name)
