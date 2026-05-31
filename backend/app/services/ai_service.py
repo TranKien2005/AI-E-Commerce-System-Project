@@ -225,7 +225,9 @@ class MemoryVectorStore:
                 async with self.lock:
                     self.storage = new_storage
                     self.local_version = remote_version
-                logger.info(f"Sync completed. Loaded {len(self.storage)} products from Redis.")
+                logger.info(
+                    f"Sync completed. Loaded {len(self.storage)} products from Redis."
+                )
         except Exception as e:
             logger.warning(f"Error syncing vector store with Redis: {e}")
 
@@ -238,18 +240,22 @@ class MemoryVectorStore:
                 cached_keys = await client.hkeys("vector_store:products")
                 cached_pids = {int(k) for k in cached_keys}
                 db_pids = {p.id for p in db_products}
-                
+
                 if db_pids == cached_pids:
-                    logger.info("Database product IDs match Redis cache. Loading directly from Redis...")
+                    logger.info(
+                        "Database product IDs match Redis cache. Loading directly from Redis..."
+                    )
                     await self.sync_with_redis()
                     return
-                
+
                 # Nếu không khớp, ta sẽ xóa và ghi đè lại Redis Hash để tránh rác
-                logger.info("Product IDs mismatch or cache empty. Repopulating Redis and local storage...")
+                logger.info(
+                    "Product IDs mismatch or cache empty. Repopulating Redis and local storage..."
+                )
                 await client.delete("vector_store:products")
             except Exception as e:
                 logger.warning(f"Error checking cache during initialization: {e}")
-        
+
         # Nếu không có client hoặc không khớp, ta chạy lập chỉ mục từng sản phẩm
         new_storage = {}
         for p in db_products:
@@ -262,10 +268,10 @@ class MemoryVectorStore:
                 "embedding": emb,
             }
             new_storage[p.id] = pdata
-            
+
         async with self.lock:
             self.storage = new_storage
-            
+
         if client:
             try:
                 # Ghi đè hàng loạt bằng pipeline
@@ -295,21 +301,23 @@ class MemoryVectorStore:
         """
         text = f"{name or ''} {description or ''}".strip()
         emb = await get_embedding(text)
-        
+
         pdata = {
             "name": name,
             "description": description,
             "category_id": category_id,
             "embedding": emb,
         }
-        
+
         async with self.lock:
             self.storage[product_id] = pdata
-            
+
         client = cache.client
         if client:
             try:
-                await client.hset("vector_store:products", str(product_id), json.dumps(pdata))
+                await client.hset(
+                    "vector_store:products", str(product_id), json.dumps(pdata)
+                )
                 new_ver = await client.incr("vector_store:version")
                 self.local_version = new_ver
             except Exception as e:
@@ -324,7 +332,7 @@ class MemoryVectorStore:
         async with self.lock:
             if product_id in self.storage:
                 del self.storage[product_id]
-                
+
         client = cache.client
         if client:
             try:
