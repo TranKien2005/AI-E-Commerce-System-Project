@@ -149,7 +149,7 @@ async def get_embedding(text: str) -> list[float]:
     if not text or not text.strip():
         return [0.0] * 768
 
-    embedding_model = "gemini-embedding-2-preview"
+    embedding_model = "gemini-embedding-2"
     text_hash = hashlib.md5(text.strip().encode("utf-8")).hexdigest()
     cache_key = f"emb:{embedding_model}:{text_hash}"
 
@@ -571,7 +571,7 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
         )
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-        models = ["gemini-3.5-flash", "gemini-3.1-flash-lite"]
+        models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.0-flash"]
         for model in models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_SEARCH_API_KEY}"
@@ -586,7 +586,11 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
                             .get("text", "")
                         )
                         if text_response:
-                            parsed = json.loads(text_response.strip())
+                            clean_text = text_response.strip()
+                            if clean_text.startswith("```"):
+                                clean_text = re.sub(r"^```(?:json)?\n", "", clean_text, flags=re.IGNORECASE)
+                                clean_text = re.sub(r"\n```$", "", clean_text)
+                            parsed = json.loads(clean_text.strip())
 
                             result = {
                                 "category": parsed.get("category"),
