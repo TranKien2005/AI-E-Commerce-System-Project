@@ -318,3 +318,7 @@ npm run build
 - Frontend stores access/refresh tokens in localStorage for development convenience.
 - OTP and refresh-token revocation are currently in-memory.
 - WebSocket auth uses the access token as a query param in local dev; production should prefer cookie/BFF or short-lived socket tokens.
+
+## 10. Intent Search demo
+<img width="1885" height="957" alt="image" src="https://github.com/user-attachments/assets/336b6aa8-62e0-4d73-868c-b689558c863e" />
+
