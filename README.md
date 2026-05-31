@@ -192,6 +192,7 @@ The backend exposes and emits:
 | Tracing | Jaeger UI at `http://localhost:16686`, service `ecommerce-backend` |
 | Rate limit | Auth endpoints use app-level limits, configurable by `RATE_LIMIT_*` env vars |
 | Circuit breaker | Resend email calls are protected by `pybreaker`, configurable by `CIRCUIT_BREAKER_*` env vars |
+<img width="1898" height="927" alt="image" src="https://github.com/user-attachments/assets/587f5786-3ec5-4f40-9bfc-3cdf2269f16c" />
 
 ## 6. Current marketplace behavior
 
