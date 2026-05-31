@@ -408,7 +408,8 @@ def mock_parse_intent(query_text: str, categories: list[str]) -> dict:
 
     matched_category = None
     for cat in categories:
-        if cat.lower() in query_lower:
+        pattern = rf"\b{re.escape(cat.lower())}\b"
+        if re.search(pattern, query_lower):
             matched_category = cat
             break
 
