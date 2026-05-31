@@ -169,13 +169,19 @@ async def get_embedding(text: str) -> list[float]:
             "content": {"parts": [{"text": text}]},
         }
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                emb = data.get("embedding", {}).get("values", [])
-                if emb:
-                    await cache.set(cache_key, emb)
-                    return emb
+            for attempt in range(3):
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    emb = data.get("embedding", {}).get("values", [])
+                    if emb:
+                        await cache.set(cache_key, emb)
+                        return emb
+                elif resp.status_code == 429:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                else:
+                    break
             logger.warning(
                 f"Gemini embedding API returned status {resp.status_code}. Using mock embedding."
             )
@@ -268,6 +274,7 @@ class MemoryVectorStore:
                 "embedding": emb,
             }
             new_storage[p.id] = pdata
+            await asyncio.sleep(0.05)  # Tránh gửi quá nhiều request đồng thời gây 429
 
         async with self.lock:
             self.storage = new_storage
@@ -362,7 +369,7 @@ class MemoryVectorStore:
                 sim = cosine_similarity(query_emb, pdata["embedding"])
                 scores.append((pid, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
-        return [pid for pid, score in scores[:k]]
+        return [pid for pid, score in scores if score > 0.7][:k]
 
 
 vector_store = MemoryVectorStore()
