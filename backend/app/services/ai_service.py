@@ -212,27 +212,46 @@ class MemoryVectorStore:
         try:
             ver_str = await client.get("vector_store:version")
             if not ver_str:
-                await client.set("vector_store:version", "0")
-                ver_str = "0"
+                return  # Giữ nguyên local storage hiện tại nếu Redis chưa có version
             remote_version = int(ver_str)
-            if remote_version != self.local_version:
-                logger.info(
-                    f"Syncing vector store with Redis. Local version: {self.local_version}, Remote version: {remote_version}"
+            if remote_version == self.local_version:
+                return  # Đã đồng bộ rồi, bỏ qua để tránh block lock và overhead
+
+            logger.info(
+                f"Syncing vector store with Redis. Local version: {self.local_version}, Remote version: {remote_version}"
+            )
+            all_products = await client.hgetall("vector_store:products")
+            if not all_products:
+                logger.warning(
+                    "Redis vector store products hash is empty. Retaining local storage."
                 )
-                all_products = await client.hgetall("vector_store:products")
-                new_storage = {}
-                for pid_str, pdata_str in all_products.items():
-                    try:
-                        pid = int(pid_str)
-                        pdata = json.loads(pdata_str)
-                        new_storage[pid] = pdata
-                    except Exception as e:
-                        logger.warning(f"Error parsing cached product {pid_str}: {e}")
+                return
+
+            new_storage = {}
+            for pid_str, pdata_str in all_products.items():
+                try:
+                    pid = int(pid_str)
+                    pdata = json.loads(pdata_str)
+                    emb = pdata.get("embedding")
+                    if not emb or not isinstance(emb, list) or len(emb) < 10:
+                        logger.warning(
+                            f"Product {pid} has invalid or empty embedding in Redis, skipping"
+                        )
+                        continue
+                    new_storage[pid] = pdata
+                except Exception as e:
+                    logger.warning(f"Error parsing cached product {pid_str}: {e}")
+
+            if new_storage:
                 async with self.lock:
                     self.storage = new_storage
                     self.local_version = remote_version
                 logger.info(
                     f"Sync completed. Loaded {len(self.storage)} products from Redis."
+                )
+            else:
+                logger.warning(
+                    "No valid products loaded from Redis. Retaining local storage."
                 )
         except Exception as e:
             logger.warning(f"Error syncing vector store with Redis: {e}")
@@ -349,27 +368,40 @@ class MemoryVectorStore:
             except Exception as e:
                 logger.warning(f"Failed to delete product {product_id} from Redis: {e}")
 
-    async def query_similarity(self, query_text: str, k: int = 20) -> list[int]:
+    async def query_similarity(
+        self, query_text: str, k: int = 20, category_id: int | None = None
+    ) -> list[int]:
         """Tìm kiếm Top-K sản phẩm có độ tương đồng ngữ nghĩa cao nhất với từ khóa.
 
         Args:
             query_text: Đoạn văn bản tìm kiếm đầu vào của khách hàng.
             k: Số lượng kết quả tối đa được phép trả về.
+            category_id: ID danh mục để lọc sản phẩm ngay từ lúc so khớp similarity.
 
         Returns:
             Danh sách các ID sản phẩm được xếp theo thứ tự độ tương đồng giảm dần.
         """
         await self.sync_with_redis()
+        logger.info(f"[SEARCH] Local storage size: {len(self.storage)}")
         if not self.storage:
             return []
         query_emb = await get_embedding(query_text)
         scores = []
         async with self.lock:
             for pid, pdata in self.storage.items():
+                if category_id is not None and pdata.get("category_id") != category_id:
+                    continue
                 sim = cosine_similarity(query_emb, pdata["embedding"])
                 scores.append((pid, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
-        return [pid for pid, score in scores if score > 0.7][:k]
+
+        # Log top 5 scores phục vụ debug thực tế
+        logger.info(
+            f"[SEARCH] query='{query_text}' top5={[(pid, round(score, 4)) for pid, score in scores[:5]]}"
+        )
+
+        # Ngưỡng tương đồng 0.3 là tối ưu cho cross-language search
+        return [pid for pid, score in scores if score > 0.3][:k]
 
 
 vector_store = MemoryVectorStore()
@@ -575,12 +607,12 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
             f"Available categories: {categories}\n"
             "CRITICAL: The extracted 'category' MUST be one of the exact strings in the 'Available categories' list, or null if the query does not map to any of them. "
             "Do NOT invent new category names (for example, do not output 'Clothing' if only 'Apparel & Accessories' is available). Choose ONLY from the exact list provided.\n\n"
-            f"Given the user query: \"{query_text}\"\n\n"
+            f'Given the user query: "{query_text}"\n\n'
             "Extract parameters as JSON format with keys: category (string or null), min_price (number or null), max_price (number or null), sort (string or null), search_query (string)."
         )
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-        models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.0-flash"]
+        models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         for model in models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_SEARCH_API_KEY}"
@@ -597,7 +629,12 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
                         if text_response:
                             clean_text = text_response.strip()
                             if clean_text.startswith("```"):
-                                clean_text = re.sub(r"^```(?:json)?\n", "", clean_text, flags=re.IGNORECASE)
+                                clean_text = re.sub(
+                                    r"^```(?:json)?\n",
+                                    "",
+                                    clean_text,
+                                    flags=re.IGNORECASE,
+                                )
                                 clean_text = re.sub(r"\n```$", "", clean_text)
                             parsed = json.loads(clean_text.strip())
 

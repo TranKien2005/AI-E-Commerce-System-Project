@@ -508,10 +508,14 @@ async def search_products(
         ai_cat_name = ai_res.get("category")
         if ai_cat_name:
             db_cat = db.scalar(
-                select(Category)
-                .where(Category.name.ilike(f"%{ai_cat_name}%"))
-                .limit(1)
+                select(Category).where(Category.name.ilike(ai_cat_name)).limit(1)
             )
+            if not db_cat:
+                db_cat = db.scalar(
+                    select(Category)
+                    .where(Category.name.ilike(f"%{ai_cat_name}%"))
+                    .limit(1)
+                )
             if db_cat:
                 category_id = db_cat.id
             else:
@@ -530,7 +534,12 @@ async def search_products(
                 }
 
         # Thực hiện truy vấn không gian Vector tìm Top-K sản phẩm tương đồng về mặt ngữ nghĩa
-        product_ids = await vector_store.query_similarity(query, k=50)
+        product_ids = await vector_store.query_similarity(
+            query, k=50, category_id=category_id
+        )
+        logger.info(
+            f"AI Search - Query: {query}, Resolved Category ID: {category_id}, Found Product IDs: {product_ids}"
+        )
 
     res = _build_query(
         db,
