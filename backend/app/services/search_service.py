@@ -509,15 +509,25 @@ async def search_products(
         if ai_cat_name:
             db_cat = db.scalar(
                 select(Category)
-                .join(Product, Product.category_id == Category.id)
-                .where(
-                    Category.name.ilike(f"%{ai_cat_name}%"),
-                    Product.deleted_at.is_(None),
-                )
+                .where(Category.name.ilike(f"%{ai_cat_name}%"))
                 .limit(1)
             )
             if db_cat:
                 category_id = db_cat.id
+            else:
+                return {
+                    "shops": {"items": [], "meta": _meta(1, page_size, 0)},
+                    "products": {
+                        "items": [],
+                        "meta": _meta(page, page_size, 0),
+                        "is_fallback": is_fallback,
+                        "ai_parsed": ai_parsed,
+                    },
+                    "items": [],
+                    "meta": _meta(page, page_size, 0),
+                    "is_fallback": is_fallback,
+                    "ai_parsed": ai_parsed,
+                }
 
         # Thực hiện truy vấn không gian Vector tìm Top-K sản phẩm tương đồng về mặt ngữ nghĩa
         product_ids = await vector_store.query_similarity(query, k=50)

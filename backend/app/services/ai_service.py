@@ -564,10 +564,12 @@ async def parse_intent(query_text: str, categories: list[str]) -> dict:
 
     try:
         prompt = (
-            f"You are an AI assistant in an E-Commerce system. Your task is to parse a user search query into structured search filters.\n"
-            f"Available categories: {categories}\n\n"
-            f'Given the user query: "{query_text}"\n\n'
-            f"Extract parameters as JSON format with keys: category (string or null), min_price (number or null), max_price (number or null), sort (string or null), search_query (string)."
+            "You are an AI assistant in an E-Commerce system. Your task is to parse a user search query into structured search filters.\n"
+            f"Available categories: {categories}\n"
+            "CRITICAL: The extracted 'category' MUST be one of the exact strings in the 'Available categories' list, or null if the query does not map to any of them. "
+            "Do NOT invent new category names (for example, do not output 'Clothing' if only 'Apparel & Accessories' is available). Choose ONLY from the exact list provided.\n\n"
+            f"Given the user query: \"{query_text}\"\n\n"
+            "Extract parameters as JSON format with keys: category (string or null), min_price (number or null), max_price (number or null), sort (string or null), search_query (string)."
         )
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
