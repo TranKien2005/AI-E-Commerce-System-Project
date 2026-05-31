@@ -6,7 +6,7 @@ metadata:
 type: Opaque
 stringData:
   SECRET_KEY: "ChangeThisSecretKeyInProduction-Use-Strong-Random-String"
-  DATABASE_URL: "postgresql+psycopg2://postgres:ChangeThisInProduction123!@postgres:5432/ecommerce"
+  DATABASE_URL: "postgresql+psycopg2://postgres:postgres@postgres:5432/ecommerce"
   REDIS_URL: "redis://redis:6379/0"
 ---
 # Backend Deployment
@@ -26,7 +26,8 @@ spec:
     spec:
       containers:
       - name: backend
-        image: your-registry/ecommerce-backend:latest
+        image: ai-ecommerce-backend:test
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
         env:
@@ -108,9 +109,15 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: your-registry/ecommerce-frontend:latest
+        image: ai-ecommerce-frontend:test
+        imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 80
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_API_BASE_URL
+          value: "/api/v1"
+        - name: INTERNAL_API_BASE_URL
+          value: "http://ecommerce-backend:8000/api/v1"
         resources:
           limits:
             cpu: "500m"
@@ -128,7 +135,7 @@ spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 80
+    targetPort: 3000
   selector:
     app: ecommerce-frontend
 ---

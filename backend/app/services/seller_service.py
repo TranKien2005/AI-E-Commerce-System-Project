@@ -28,15 +28,20 @@ logger = logging.getLogger(__name__)
 
 
 def _run_async(coro):
-    """Chạy một coroutine từ môi trường đồng bộ, hỗ trợ cả AnyIO threadpool và sync environment."""
+    """Chạy một coroutine từ môi trường đồng bộ, hỗ trợ cả AnyIO threadpool, loop threads và sync environment."""
+    import asyncio
     try:
-        from anyio.from_thread import run
-
-        return run(lambda: coro)
+        # Nếu đang chạy trực tiếp trên thread của event loop, ta schedule chạy nền thay vì block
+        loop = asyncio.get_running_loop()
+        return loop.create_task(coro)
     except RuntimeError:
-        import asyncio
-
-        return asyncio.run(coro)
+        # Không có loop chạy trên thread hiện tại (ví dụ: worker thread của AnyIO)
+        try:
+            from anyio.from_thread import run
+            return run(lambda: coro)
+        except RuntimeError:
+            # Fallback nếu không có loop nào khác đang chạy trên hệ thống
+            return asyncio.run(coro)
 
 
 def _send_email_after_commit(to_email: str, subject: str, html: str):

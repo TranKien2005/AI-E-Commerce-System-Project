@@ -90,10 +90,6 @@ port-dashboard: ## Mở Kubernetes Dashboard tại https://localhost:8443
 
 port-grafana: ## Mở Grafana tại http://localhost:3000
 	@echo ">> Grafana: http://localhost:3000"
-	@echo ">> Password:"
-	@kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
-	@echo
-	@kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring
 
 port-jaeger: ## Mở Jaeger Tracing tại http://localhost:16686
 	@echo ">> Jaeger UI: http://localhost:16686"

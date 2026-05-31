@@ -7,13 +7,14 @@ spec:
     spec:
       containers:
         - name: migration
-          image: ai-ecommerce-backend:phase1
-          imagePullPolicy: Never
+          image: ai-ecommerce-backend:test
+          imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
-          envFrom:
-            - configMapRef:
-                name: ecommerce-backend-config
-            - secretRef:
-                name: ecommerce-backend-secret
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: DATABASE_URL
       restartPolicy: Never
   backoffLimit: 1

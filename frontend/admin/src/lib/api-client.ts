@@ -1,4 +1,4 @@
-﻿type ApiEnvelope<T> =
+type ApiEnvelope<T> =
   | { success: true; data: T; message?: string }
   | { success: false; error: { code: string; message: string; details?: unknown[] } };
 
@@ -8,7 +8,10 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const IS_SERVER = typeof window === "undefined";
+const API_BASE_URL = IS_SERVER
+  ? (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1")
+  : (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1");
 
 export async function apiFetch<T>(path: string, init: RequestInit & { token?: string | null } = {}): Promise<T> {
   const { token, headers, ...requestInit } = init;

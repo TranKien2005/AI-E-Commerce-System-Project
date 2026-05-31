@@ -190,12 +190,97 @@ async def get_embedding(text: str) -> list[float]:
 
 
 class MemoryVectorStore:
-    """Kho lưu trữ cơ sở dữ liệu Vector cục bộ trên RAM hỗ trợ xử lý luồng an toàn."""
+    """Kho lưu trữ cơ sở dữ liệu Vector cục bộ trên RAM kết hợp bộ nhớ đệm Redis và cơ chế tự động đồng bộ."""
 
     def __init__(self):
-        """Khởi tạo cấu trúc lưu trữ và khóa bất đồng bộ."""
+        """Khởi tạo cấu trúc lưu trữ, khóa bất đồng bộ và theo dõi phiên bản đồng bộ."""
         self.lock = asyncio.Lock()
         self.storage = {}
+        self.local_version = 0
+
+    async def sync_with_redis(self):
+        """Đồng bộ hóa dữ liệu từ bộ nhớ đệm Redis nếu phiên bản thay đổi."""
+        client = cache.client
+        if not client:
+            return
+        try:
+            ver_str = await client.get("vector_store:version")
+            if not ver_str:
+                await client.set("vector_store:version", "0")
+                ver_str = "0"
+            remote_version = int(ver_str)
+            if remote_version != self.local_version:
+                logger.info(
+                    f"Syncing vector store with Redis. Local version: {self.local_version}, Remote version: {remote_version}"
+                )
+                all_products = await client.hgetall("vector_store:products")
+                new_storage = {}
+                for pid_str, pdata_str in all_products.items():
+                    try:
+                        pid = int(pid_str)
+                        pdata = json.loads(pdata_str)
+                        new_storage[pid] = pdata
+                    except Exception as e:
+                        logger.warning(f"Error parsing cached product {pid_str}: {e}")
+                async with self.lock:
+                    self.storage = new_storage
+                    self.local_version = remote_version
+                logger.info(f"Sync completed. Loaded {len(self.storage)} products from Redis.")
+        except Exception as e:
+            logger.warning(f"Error syncing vector store with Redis: {e}")
+
+    async def init_index(self, db_products: list):
+        """Khởi tạo kho chỉ mục từ danh sách sản phẩm lấy từ cơ sở dữ liệu."""
+        client = cache.client
+        if client:
+            try:
+                # Lấy danh sách ID hiện tại trong Redis Hash
+                cached_keys = await client.hkeys("vector_store:products")
+                cached_pids = {int(k) for k in cached_keys}
+                db_pids = {p.id for p in db_products}
+                
+                if db_pids == cached_pids:
+                    logger.info("Database product IDs match Redis cache. Loading directly from Redis...")
+                    await self.sync_with_redis()
+                    return
+                
+                # Nếu không khớp, ta sẽ xóa và ghi đè lại Redis Hash để tránh rác
+                logger.info("Product IDs mismatch or cache empty. Repopulating Redis and local storage...")
+                await client.delete("vector_store:products")
+            except Exception as e:
+                logger.warning(f"Error checking cache during initialization: {e}")
+        
+        # Nếu không có client hoặc không khớp, ta chạy lập chỉ mục từng sản phẩm
+        new_storage = {}
+        for p in db_products:
+            text = f"{p.name or ''} {p.description or ''}".strip()
+            emb = await get_embedding(text)
+            pdata = {
+                "name": p.name,
+                "description": p.description,
+                "category_id": p.category_id,
+                "embedding": emb,
+            }
+            new_storage[p.id] = pdata
+            
+        async with self.lock:
+            self.storage = new_storage
+            
+        if client:
+            try:
+                # Ghi đè hàng loạt bằng pipeline
+                async with client.pipeline(transaction=True) as pipe:
+                    for pid, pdata in new_storage.items():
+                        pipe.hset("vector_store:products", str(pid), json.dumps(pdata))
+                    # Reset version về 1
+                    pipe.set("vector_store:version", "1")
+                    await pipe.execute()
+                self.local_version = 1
+                logger.info("Redis cache repopulated successfully.")
+            except Exception as e:
+                logger.warning(f"Failed to save repopulated storage to Redis: {e}")
+        else:
+            self.local_version = 0
 
     async def add_product(
         self, product_id: int, name: str, description: str, category_id: int | None
@@ -210,13 +295,25 @@ class MemoryVectorStore:
         """
         text = f"{name or ''} {description or ''}".strip()
         emb = await get_embedding(text)
+        
+        pdata = {
+            "name": name,
+            "description": description,
+            "category_id": category_id,
+            "embedding": emb,
+        }
+        
         async with self.lock:
-            self.storage[product_id] = {
-                "name": name,
-                "description": description,
-                "category_id": category_id,
-                "embedding": emb,
-            }
+            self.storage[product_id] = pdata
+            
+        client = cache.client
+        if client:
+            try:
+                await client.hset("vector_store:products", str(product_id), json.dumps(pdata))
+                new_ver = await client.incr("vector_store:version")
+                self.local_version = new_ver
+            except Exception as e:
+                logger.warning(f"Failed to save product {product_id} to Redis: {e}")
 
     async def delete_product(self, product_id: int):
         """Xóa bỏ sản phẩm và cấu trúc dữ liệu vector liên quan ra khỏi bộ nhớ.
@@ -227,6 +324,15 @@ class MemoryVectorStore:
         async with self.lock:
             if product_id in self.storage:
                 del self.storage[product_id]
+                
+        client = cache.client
+        if client:
+            try:
+                await client.hdel("vector_store:products", str(product_id))
+                new_ver = await client.incr("vector_store:version")
+                self.local_version = new_ver
+            except Exception as e:
+                logger.warning(f"Failed to delete product {product_id} from Redis: {e}")
 
     async def query_similarity(self, query_text: str, k: int = 20) -> list[int]:
         """Tìm kiếm Top-K sản phẩm có độ tương đồng ngữ nghĩa cao nhất với từ khóa.
@@ -238,6 +344,7 @@ class MemoryVectorStore:
         Returns:
             Danh sách các ID sản phẩm được xếp theo thứ tự độ tương đồng giảm dần.
         """
+        await self.sync_with_redis()
         if not self.storage:
             return []
         query_emb = await get_embedding(query_text)

@@ -634,10 +634,7 @@ def init_search_index(db: Session):
         import asyncio
 
         async def index_all():
-            for p in products:
-                await vector_store.add_product(
-                    p.id, p.name, p.description, p.category_id
-                )
+            await vector_store.init_index(products)
 
         asyncio.run(index_all())
 

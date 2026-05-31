@@ -29,8 +29,7 @@ $SeedCommand = @("python", "scripts/seed.py") + $SeedArgs
 
 Write-Host "Running seed in Docker Desktop Kubernetes with image: $FullImageName"
 Invoke-Step { kubectl config use-context docker-desktop } "Failed to switch kubectl context to docker-desktop."
-Invoke-Step { kubectl get deployment postgres } "PostgreSQL deployment was not found. Run .\k8s-up.ps1 first."
-Invoke-Step { kubectl wait --for=condition=Available deployment/postgres --timeout=120s } "PostgreSQL did not become available."
+Invoke-Step { kubectl get sts postgres } "PostgreSQL StatefulSet was not found."
 Invoke-Step { kubectl delete pod $SeedPodName --ignore-not-found } "Failed to delete previous seed pod."
 
 kubectl run $SeedPodName `

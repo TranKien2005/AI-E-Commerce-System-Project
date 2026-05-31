@@ -4,7 +4,10 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const IS_SERVER = typeof window === "undefined";
+export const API_BASE_URL = IS_SERVER
+  ? (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1")
+  : (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1");
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 

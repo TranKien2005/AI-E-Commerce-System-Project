@@ -13,7 +13,7 @@ data:
       - job_name: ecommerce-backend
         metrics_path: /metrics
         static_configs:
-          - targets: ["ecommerce-backend:80"]
+          - targets: ["ecommerce-backend:8000"]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -228,6 +228,9 @@ spec:
             - name: containers
               mountPath: /var/log/containers
               readOnly: true
+            - name: dockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -238,6 +241,9 @@ spec:
         - name: containers
           hostPath:
             path: /var/log/containers
+        - name: dockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
 ---
 apiVersion: v1
 kind: ConfigMap
